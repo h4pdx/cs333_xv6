@@ -1,0 +1,128 @@
+
+Changes made to xv6 to facilitate projects at Portland State University.
+
+1. Access to the ''ticks'' global has been made atomic. This is necessary
+to avoid deadlock with regards to tickslock/ptable.lock. Since Intel
+has atomic guarantees and GNU gcc has a suitable alignment syntax, we
+are able to do away with the tickslock everywhere but in the sleep()
+system call (sleep() in proc.c invoked from sys_sleep() in sysproc.c).
+The following changes were required.
+
+1a. The definition for ticks was made 32-bit aligned in trap.c.
+// set alignment to 32-bit for ticks. See Intel® 64 and IA-32 Architectures
+// Software Developer’s Manual, Vol 3A, 8.1.1 Guaranteed Atomic Operations.
+uint ticks __attribute__ ((aligned (4)));
+
+1b. The code for handling the timer interrupt was changed in trap.c. Note
+that the code change from the original for the ticklock is no longer
+necessary.
+
+  switch(tf->trapno){
+  case T_IRQ0 + IRQ_TIMER:
+    if(cpu->id == 0){
+      acquire(&tickslock);
+      ticks++;
+      release(&tickslock);    // NOTE: MarkM has reversed these two lines.
+      wakeup(&ticks);         // wakeup() does not require the tickslock to be held
+    }
+
+changed to:
+
+  switch(tf->trapno){
+  case T_IRQ0 + IRQ_TIMER:
+    if(cpu->id == 0){
+      atom_inc((int *)&ticks);
+      wakeup(&ticks);
+    }
+
+1c. The file x86.c had several routines added. The atom_inc() was added for
+atomic increment for ticks variable.
+
+// Routines added for CS333
+// atom_inc() added to simplify handling of ticks global
+static inline void
+atom_inc(volatile int *num)
+{
+  asm volatile ( "lock incl %0" : "=m" (*num));
+}
+
+// hlt() added by Noah Zentzis, Fall 2016.
+static inline void
+hlt()
+{
+  asm volatile("hlt");
+}
+
+static inline void
+lock_inc(uint* mem)
+{
+  asm volatile("lock incl %0" : "=m" (mem));
+}
+
+static inline void
+lock_dec(uint* mem)
+{
+  asm volatile("lock decl %0" : "=m" (mem));
+}
+
+static inline void
+lock_add(uint* mem, uint n)
+{
+  asm volatile("lock add %0, %1" : "=m" (mem) : "d" (n));
+}
+
+// end of CS333 added routines
+
+1d. Removed tickslock acquisition/free in sys_uptime (sysproc.c) since
+reading is now atomic.
+
+2. A new feature was added to the scheduler to turn off for
+the remainder of the time slice when no work is in the ready queue.
+proc.c in routine scheduler(). The hlt() routine is in x86.c.
+
+  int idle;  // for checking if processor is idle
+
+...
+
+    idle = 1;  // assume idle unless we schedule a process
+
+...
+
+      idle = 0;  // not idle this timeslice
+
+...
+
+    release(&ptable.lock);
+    // if idle, wait for next interrupt
+    if (idle) {
+      sti();
+      hlt();
+    }
+
+3. A new user command, halt, was created to shutdown QEMU.  This is
+distinct from the hlt() function. See sys_halt() in sysproc.c.
+
+4. All uses of tickslock (e.g., sys_sleep()) have been removed. This
+necessitated surgery on sleep() in pro.c. Calling cleep with a NULL
+lock is now legal but must be limited to sys_sleep(). CAUTION
+
+5. A general cleanup of the Makefile to be less confusing and more
+specific to PSU.
+
+6. The array states[] in proc.c was moved out of procdump() to be file
+global. This helps with implementing the ps command in one of the projects.
+
+7. A test program for the date() system call is given. The test program, date.c,
+won't compile until the system call is implemented.
+
+8. Added a define in types.h to adjust the ticks per second  This is
+useful when implementing MLFQ scheduling. See timer.c (uniprocessor)
+and lapic.c (SMP) for use.
+
+9. When TPS is other than the MIT default, we can modify trap.c to invoke the
+scheduler (via yield()) at less than the TPS frequency. This makes MLFQ
+more realistic.
+
+10. Updated atoi() in ulib.c to handle negative numbers
+
+11. Changed Makefile so that PSU students only make modifications at the top.
