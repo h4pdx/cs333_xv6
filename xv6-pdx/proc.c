@@ -70,6 +70,10 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+#ifdef CS333_P1
+  p->start_ticks = ticks;
+#endif
+
   return p;
 }
 
@@ -495,6 +499,19 @@ static char *states[] = {
   [ZOMBIE]    "zombie"
 };
 
+#ifdef CS333_P1
+void
+elapsed_time(struct proc *p) {
+    uint elapsed, whole_sec, milisec_ten, milisec_hund, milisec_thou;
+    elapsed = ticks - p->start_ticks; // find original elapsed time
+    whole_sec = elapsed / 1000; // the the left of the decimal point
+    // % to shave off leading digit of elapsed for decimal place calcs
+    milisec_ten = (elapsed %= 1000) / 100; // divide and round up to nearest int
+    milisec_hund = (elapsed %= 100) / 10; // shave off previously counted int, repeat
+    milisec_thou = elapsed %= 10; // determine thousandth place
+    cprintf("\t%d.%d%d%d", whole_sec, milisec_ten, milisec_hund, milisec_thou);
+}
+#endif
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
@@ -506,7 +523,9 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
-  
+#ifdef CS333_P1
+  cprintf("\n%s\t%s\t%s\t%s\t%s\n", "PID", "State", "Name", "Elapsed", "PCs");
+#endif
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -514,12 +533,17 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d\t%s\t%s", p->pid, state, p->name);
+#ifdef CS333_P1
+    elapsed_time(p);
+#endif
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
-        cprintf(" %p", pc[i]);
+        cprintf("\t%p", pc[i]);
     }
     cprintf("\n");
   }
 }
+
+
