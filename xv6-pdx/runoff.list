@@ -89,3 +89,4 @@ p5-test.c
 p5-test.h
 testsetuid.c
 testSched.c
+testids.c

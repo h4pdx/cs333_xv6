@@ -100,6 +100,14 @@ userinit(void)
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
 
+#ifdef CS333_P2
+  p->uid = UID;
+  p->gid = GID;
+  //uint ppid = 0;
+  p->parent = p;
+  
+#endif
+
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -159,6 +167,12 @@ fork(void)
   np->cwd = idup(proc->cwd);
 
   safestrcpy(np->name, proc->name, sizeof(proc->name));
+
+#ifdef CS333_P2
+  np->uid = proc->uid;
+  np->gid = proc->gid;
+
+#endif
  
   pid = np->pid;
 

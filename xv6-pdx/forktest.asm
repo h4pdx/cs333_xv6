@@ -42,7 +42,7 @@ forktest(void)
 
   printf(1, "fork test\n");
   2f:	83 ec 08             	sub    $0x8,%esp
-  32:	68 f0 04 00 00       	push   $0x4f0
+  32:	68 18 05 00 00       	push   $0x518
   37:	6a 01                	push   $0x1
   39:	e8 c2 ff ff ff       	call   0 <printf>
   3e:	83 c4 10             	add    $0x10,%esp
@@ -86,7 +86,7 @@ forktest(void)
     printf(1, "fork claimed to work N times!\n", N);
   7c:	83 ec 04             	sub    $0x4,%esp
   7f:	68 e8 03 00 00       	push   $0x3e8
-  84:	68 fc 04 00 00       	push   $0x4fc
+  84:	68 24 05 00 00       	push   $0x524
   89:	6a 01                	push   $0x1
   8b:	e8 70 ff ff ff       	call   0 <printf>
   90:	83 c4 10             	add    $0x10,%esp
@@ -101,7 +101,7 @@ forktest(void)
   9f:	79 17                	jns    b8 <forktest+0x8f>
       printf(1, "wait stopped early\n");
   a1:	83 ec 08             	sub    $0x8,%esp
-  a4:	68 1b 05 00 00       	push   $0x51b
+  a4:	68 43 05 00 00       	push   $0x543
   a9:	6a 01                	push   $0x1
   ab:	e8 50 ff ff ff       	call   0 <printf>
   b0:	83 c4 10             	add    $0x10,%esp
@@ -127,7 +127,7 @@ forktest(void)
   ca:	74 17                	je     e3 <forktest+0xba>
     printf(1, "wait got too many\n");
   cc:	83 ec 08             	sub    $0x8,%esp
-  cf:	68 2f 05 00 00       	push   $0x52f
+  cf:	68 57 05 00 00       	push   $0x557
   d4:	6a 01                	push   $0x1
   d6:	e8 25 ff ff ff       	call   0 <printf>
   db:	83 c4 10             	add    $0x10,%esp
@@ -137,7 +137,7 @@ forktest(void)
   
   printf(1, "fork test OK\n");
   e3:	83 ec 08             	sub    $0x8,%esp
-  e6:	68 42 05 00 00       	push   $0x542
+  e6:	68 6a 05 00 00       	push   $0x56a
   eb:	6a 01                	push   $0x1
   ed:	e8 0e ff ff ff       	call   0 <printf>
   f2:	83 c4 10             	add    $0x10,%esp
@@ -815,3 +815,33 @@ SYSCALL(date)
  4e5:	b8 17 00 00 00       	mov    $0x17,%eax
  4ea:	cd 40                	int    $0x40
  4ec:	c3                   	ret    
+
+000004ed <getuid>:
+SYSCALL(getuid)
+ 4ed:	b8 18 00 00 00       	mov    $0x18,%eax
+ 4f2:	cd 40                	int    $0x40
+ 4f4:	c3                   	ret    
+
+000004f5 <getgid>:
+SYSCALL(getgid)
+ 4f5:	b8 19 00 00 00       	mov    $0x19,%eax
+ 4fa:	cd 40                	int    $0x40
+ 4fc:	c3                   	ret    
+
+000004fd <getppid>:
+SYSCALL(getppid)
+ 4fd:	b8 1a 00 00 00       	mov    $0x1a,%eax
+ 502:	cd 40                	int    $0x40
+ 504:	c3                   	ret    
+
+00000505 <setuid>:
+SYSCALL(setuid)
+ 505:	b8 1b 00 00 00       	mov    $0x1b,%eax
+ 50a:	cd 40                	int    $0x40
+ 50c:	c3                   	ret    
+
+0000050d <setgid>:
+SYSCALL(setgid)
+ 50d:	b8 1c 00 00 00       	mov    $0x1c,%eax
+ 512:	cd 40                	int    $0x40
+ 514:	c3                   	ret    
