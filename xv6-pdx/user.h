@@ -36,7 +36,6 @@ uint getgid(void);
 uint getppid(void);
 int setuid(uint);
 int setgid(uint);
-//int copyprocs(uint, struct uproc*);
 int getprocs(uint, struct uproc*);
 #endif
 

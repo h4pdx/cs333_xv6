@@ -528,6 +528,10 @@ static char *states[] = {
   [RUNNING]   "run   ",
   [ZOMBIE]    "zombie"
 };
+//PAGEBREAK: 36
+// Print a process listing to console.  For debugging.
+// Runs when user types ^P on console.
+// No lock to avoid wedging a stuck machine further.
 
 #ifdef CS333_P1
 void
@@ -543,10 +547,7 @@ elapsed_time(struct proc *p)
     cprintf("\t%d.%d%d%d", whole_sec, milisec_ten, milisec_hund, milisec_thou);
 }
 #endif
-//PAGEBREAK: 36
-// Print a process listing to console.  For debugging.
-// Runs when user types ^P on console.
-// No lock to avoid wedging a stuck machine further.
+
 void
 procdump(void)
 {
@@ -581,15 +582,11 @@ procdump(void)
 int
 getprocs(uint max, struct uproc *table)
 {
-    cprintf("In getprocs(uint, struct).\n");
     int i = 0;
     struct proc *p;
     acquire(&ptable.lock);
-    //cprintf("Lock acquired.\n");
     for(p = ptable.proc; p < &ptable.proc[NPROC] && i < max; p++) {
-        //cprintf("Entered for loop (copyprocs()).\n");
         if (p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING) {
-            //cprintf("Valid table pointer.\n");
             table[i].pid = p->pid;
             table[i].uid = p->uid;
             table[i].gid = p->gid;
@@ -607,8 +604,6 @@ getprocs(uint max, struct uproc *table)
         }
     }
     release(&ptable.lock);
-    //cprintf("Lock released.\n");
-    cprintf("%s = %d\n", " >> i(copyprocs - return value)", i);
     return i;
 }
 #endif

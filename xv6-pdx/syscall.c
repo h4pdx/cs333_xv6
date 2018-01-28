@@ -104,10 +104,10 @@ extern int sys_date(void);
 #endif
 #ifdef CS333_P2
 extern int sys_getuid(void);
-extern int sys_getgid(void);
+extern int sys_getgid(void); 
 extern int sys_getppid(void);
-extern int sys_setuid(void); // void argument?
-extern int sys_setgid(void); // void argunemt of uint argument?
+extern int sys_setuid(void);
+extern int sys_setgid(void);
 extern int sys_getprocs(void);
 #endif
 
@@ -199,7 +199,6 @@ syscall(void)
 #ifdef PRINT_SYSCALLS
         cprintf("%s -> %d\n", syscallnames[num], proc->tf->eax);
 #endif
-
     } else {
         cprintf("%d %s: unknown sys call %d\n",
                 proc->pid, proc->name, num);

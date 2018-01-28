@@ -111,45 +111,52 @@ sys_date(void) {
 #endif
 
 #ifdef CS333_P2
+
+// return process UID
 int
 sys_getuid(void) {
     return proc->uid;
 }
 
+// return process GID
 int
 sys_getgid(void) {
     return proc->gid;
 }
 
+// return process parent's PID
 int
 sys_getppid(void) {
     return proc->parent->pid;
 }
 
+// pull argument from stack, check range, set process UID
 int
 sys_setuid(void) {
     int n;
     if (argint(0, &n) < 0) {
         return -1;
     }
+    // if (n < 0 || n > 32k) {}
     proc->uid = n;
     return 0;
 }
 
+// pull argument from stack, check range, set process PID
 int
 sys_setgid(void) {
     int n;
     if (argint(0, &n) < 0) {
         return -1;
     }
+    // if (n < 0 || n > 32k) {}
     proc->gid = n;
     return 0;
 }
 
-
+// pull arguments from stack, pass to proc.c getprocs(uint, struct)
 int
 sys_getprocs(void) {
-    int i;
     int m;
     struct uproc *u;
     if (argint(0, &m) < 0) {
@@ -158,11 +165,7 @@ sys_getprocs(void) {
     if (argptr(1, (void*)&u, sizeof(struct uproc)) < 0) {
         return -1;
     }
-    cprintf("In sys_getprocs().\n");
-    i = getprocs(m, u);
-    cprintf("%s = %d\n", " >> i(sys_getprocs - return value)", i);
-    return i;
-    //return copyprocs(m, u);
+    return getprocs(m, u);
 }
 
 #endif
