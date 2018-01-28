@@ -1,6 +1,7 @@
 // Segments in proc->gdt.
 #define NSEGS     7
 
+
 // Per-CPU state
 struct cpu {
   uchar id;                    // Local APIC ID; index into cpus[] below
@@ -70,8 +71,10 @@ struct proc {
   uint start_ticks;
 #endif
 #ifdef CS333_P2
-  uint uid;     // user ID
-  uint gid;     // group ID
+  uint uid;                 // user ID
+  uint gid;                 // group ID
+  uint cpu_ticks_total;     // total elapsed ticks in a CPU
+  uint cpu_ticks_in;        // ticks when scheduled
 #endif
 };
 

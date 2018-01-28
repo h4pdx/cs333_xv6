@@ -8,6 +8,9 @@ struct rtcdate;
 struct spinlock;
 struct stat;
 struct superblock;
+#ifdef CS333_P2
+struct uproc;
+#endif
 
 // bio.c
 void            binit(void);
@@ -118,6 +121,15 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+#ifdef CS333_P2
+uint            getuid(void);
+uint            getgid(void);
+uint            getppid(void);
+int             setuid(uint);
+int             setgid(uint);
+//int             copyprocs(uint, struct uproc*);
+int             getprocs(uint, struct uproc*);
+#endif
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -147,6 +159,8 @@ int             argstr(int, char**);
 int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
+
+
 
 // timer.c
 void            timerinit(void);

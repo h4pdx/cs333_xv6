@@ -1,5 +1,6 @@
 set $lastcs = -1
 
+add-auto-load-safe-path /u/hoover4/cs333/xv6-pdx/.gdbinit
 define hook-stop
   # There doesn't seem to be a good way to detect if we're in 16- or
   # 32-bit mode, but in 32-bit mode we always run with CS == 8 in the
@@ -26,4 +27,3 @@ target remote localhost:1234
 echo + symbol-file kernel\n
 symbol-file kernel
 
-add-auto-load-safe-path /u/hoover4/xv6-pdx/.gdbinit

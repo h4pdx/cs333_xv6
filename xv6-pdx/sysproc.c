@@ -6,6 +6,10 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#ifdef CS333_P2
+#include "spinlock.h"
+#include "uproc.h"
+#endif
 
 int
 sys_fork(void)
@@ -120,7 +124,6 @@ sys_getgid(void) {
 int
 sys_getppid(void) {
     return proc->parent->pid;
-    
 }
 
 int
@@ -143,13 +146,24 @@ sys_setgid(void) {
     return 0;
 }
 
-/*
+
 int
-sys_getproc(void) {
-
-
+sys_getprocs(void) {
+    int i;
+    int m;
+    struct uproc *u;
+    if (argint(0, &m) < 0) {
+        return -1;
+    }
+    if (argptr(1, (void*)&u, sizeof(struct uproc)) < 0) {
+        return -1;
+    }
+    cprintf("In sys_getprocs().\n");
+    i = getprocs(m, u);
+    cprintf("%s = %d\n", " >> i(sys_getprocs - return value)", i);
+    return i;
+    //return copyprocs(m, u);
 }
-*/
 
 #endif
 

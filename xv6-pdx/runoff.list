@@ -90,3 +90,4 @@ p5-test.h
 testsetuid.c
 testSched.c
 testids.c
+uproc.h

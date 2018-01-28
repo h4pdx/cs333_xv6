@@ -6,6 +6,9 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#ifdef CS333_P2
+#include "uproc.h"
+#endif
 
 struct {
   struct spinlock lock;
@@ -74,6 +77,11 @@ found:
   p->start_ticks = ticks;
 #endif
 
+#ifdef CS333_P2
+  p->cpu_ticks_total = 0;
+  p->cpu_ticks_in = 0;
+#endif
+
   return p;
 }
 
@@ -103,9 +111,7 @@ userinit(void)
 #ifdef CS333_P2
   p->uid = UID;
   p->gid = GID;
-  //uint ppid = 0;
-  p->parent = p;
-  
+  p->parent = p; // parent determined on the fly
 #endif
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
@@ -171,7 +177,6 @@ fork(void)
 #ifdef CS333_P2
   np->uid = proc->uid;
   np->gid = proc->gid;
-
 #endif
  
   pid = np->pid;
@@ -323,6 +328,11 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+
+#ifdef CS333_P2
+      p->cpu_ticks_in = ticks; // ticks when scheduled
+#endif
+
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
 
@@ -364,7 +374,13 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = cpu->intena;
+
+#ifdef CS333_P2
+  proc->cpu_ticks_total += ticks - proc->cpu_ticks_in;
+#endif
+
   swtch(&proc->context, cpu->scheduler);
+
   cpu->intena = intena;
 }
 #else
@@ -515,7 +531,8 @@ static char *states[] = {
 
 #ifdef CS333_P1
 void
-elapsed_time(struct proc *p) {
+elapsed_time(struct proc *p)
+{
     uint elapsed, whole_sec, milisec_ten, milisec_hund, milisec_thou;
     elapsed = ticks - p->start_ticks; // find original elapsed time
     whole_sec = elapsed / 1000; // the the left of the decimal point
@@ -560,4 +577,39 @@ procdump(void)
   }
 }
 
+#ifdef CS333_P2
+int
+getprocs(uint max, struct uproc *table)
+{
+    cprintf("In getprocs(uint, struct).\n");
+    int i = 0;
+    struct proc *p;
+    acquire(&ptable.lock);
+    //cprintf("Lock acquired.\n");
+    for(p = ptable.proc; p < &ptable.proc[NPROC] && i < max; p++) {
+        //cprintf("Entered for loop (copyprocs()).\n");
+        if (p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING) {
+            //cprintf("Valid table pointer.\n");
+            table[i].pid = p->pid;
+            table[i].uid = p->uid;
+            table[i].gid = p->gid;
+            if (p->pid == 1) {
+                table[i].ppid = 1;
+            } else {
+                table[i].ppid = p->parent->pid;
+            }
+            table[i].elapsed_ticks = (ticks - p->start_ticks);
+            table[i].CPU_total_ticks = p->cpu_ticks_total;
+            safestrcpy(table[i].state, states[p->state], STRMAX);
+            table[i].size = p->sz;
+            safestrcpy(table[i].name, p->name, STRMAX);
+            ++i;
+        }
+    }
+    release(&ptable.lock);
+    //cprintf("Lock released.\n");
+    cprintf("%s = %d\n", " >> i(copyprocs - return value)", i);
+    return i;
+}
+#endif
 
