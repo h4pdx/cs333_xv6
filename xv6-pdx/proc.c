@@ -535,10 +535,11 @@ static char *states[] = {
 
 #ifdef CS333_P1
 void
-elapsed_time(struct proc *p)
+elapsed_time(uint p_ticks)
 {
     uint elapsed, whole_sec, milisec_ten, milisec_hund, milisec_thou;
-    elapsed = ticks - p->start_ticks; // find original elapsed time
+    //elapsed = ticks - p->start_ticks; // find original elapsed time
+    elapsed = p_ticks;
     whole_sec = elapsed / 1000; // the the left of the decimal point
     // % to shave off leading digit of elapsed for decimal place calcs
     milisec_ten = (elapsed %= 1000) / 100; // divide and round up to nearest int
@@ -555,9 +556,19 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
+
+#ifndef CS333_P2
 #ifdef CS333_P1
-  cprintf("\n%s\t%s\t%s\t%s\t%s\n", "PID", "State", "Name", "Elapsed", "PCs");
+  cprintf("\n%s\t%s\t%s\t%s\t%s\n",
+          "PID", "State", "Name", "Elapsed", "PCs");
 #endif
+#endif
+
+#ifdef CS333_P2
+  cprintf("\n%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+          "PID", "Name", "UID", "GID", "PPID", "Elapsed", "CPU", "State", "Size", "PCs");
+#endif
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -565,10 +576,25 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
+
+#ifndef CS333_P2
     cprintf("%d\t%s\t%s", p->pid, state, p->name);
-#ifdef CS333_P1
-    elapsed_time(p);
 #endif
+
+#ifndef CS333_P2
+#ifdef CS333_P1
+    elapsed_time(ticks - p->start_ticks);
+#endif
+#endif
+
+#ifdef CS333_P2
+    cprintf("%d\t%s\t%d\t%d\t%d",
+            p->pid, p->name, p->uid, p->gid, p->parent->pid);
+    elapsed_time(ticks - p->start_ticks);
+    elapsed_time(p->cpu_ticks_total);
+    cprintf("\t%s\t%d", state, p->sz);
+#endif
+
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -579,6 +605,7 @@ procdump(void)
 }
 
 #ifdef CS333_P2
+// loop process table and copy active processes, return number of copied procs
 int
 getprocs(uint max, struct uproc *table)
 {
