@@ -557,6 +557,8 @@ procdump(void)
   char *state;
   uint pc[10];
 
+  // formatting if project 1 is enabled in makefile
+  // and only if P2 is NOT enabled
 #ifndef CS333_P2
 #ifdef CS333_P1
   cprintf("\n%s\t%s\t%s\t%s\t%s\n",
@@ -564,6 +566,7 @@ procdump(void)
 #endif
 #endif
 
+  // formatting if project 2 is enabled in makefile
 #ifdef CS333_P2
   cprintf("\n%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
           "PID", "Name", "UID", "GID", "PPID", "Elapsed", "CPU", "State", "Size", "PCs");
@@ -576,17 +579,21 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-
+    // original display without P1 or P2
+    // only display if project 2 is NOT enabled
 #ifndef CS333_P2
     cprintf("%d\t%s\t%s", p->pid, state, p->name);
 #endif
 
+    // formatting if project 1 is enabled in makefile
+    // only display if project 2 is NOT enabled
 #ifndef CS333_P2
 #ifdef CS333_P1
     elapsed_time(ticks - p->start_ticks);
 #endif
 #endif
 
+    // formatting if project 2 is enabled in makefile
 #ifdef CS333_P2
     cprintf("%d\t%s\t%d\t%d\t%d",
             p->pid, p->name, p->uid, p->gid, p->parent->pid);
@@ -606,6 +613,7 @@ procdump(void)
 
 #ifdef CS333_P2
 // loop process table and copy active processes, return number of copied procs
+// populate uproc array passed in from ps.c
 int
 getprocs(uint max, struct uproc *table)
 {
@@ -613,6 +621,7 @@ getprocs(uint max, struct uproc *table)
     struct proc *p;
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC] && i < max; p++) {
+        // only copy active processes
         if (p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING) {
             table[i].pid = p->pid;
             table[i].uid = p->uid;
@@ -631,7 +640,7 @@ getprocs(uint max, struct uproc *table)
         }
     }
     release(&ptable.lock);
-    return i;
+    return i; // return number of procs copied
 }
 #endif
 

@@ -108,8 +108,7 @@ main(void)
   int max = 32, active_procs = 0;
   d5:	c7 45 e0 20 00 00 00 	movl   $0x20,-0x20(%ebp)
   dc:	c7 45 dc 00 00 00 00 	movl   $0x0,-0x24(%ebp)
-  struct uproc* utable;
-  utable = (struct uproc*) malloc(max * sizeof(struct uproc));
+  struct uproc* utable = (struct uproc*) malloc(max * sizeof(struct uproc));
   e3:	8b 45 e0             	mov    -0x20(%ebp),%eax
   e6:	6b c0 5c             	imul   $0x5c,%eax,%eax
   e9:	83 ec 0c             	sub    $0xc,%esp
@@ -126,7 +125,7 @@ main(void)
  102:	e8 a5 05 00 00       	call   6ac <getprocs>
  107:	83 c4 10             	add    $0x10,%esp
  10a:	89 45 dc             	mov    %eax,-0x24(%ebp)
-  // error somewhere along the way
+  // error from sysproc.c - valued not pulled from stack
   if (active_procs == -1) {
  10d:	83 7d dc ff          	cmpl   $0xffffffff,-0x24(%ebp)
  111:	75 25                	jne    138 <main+0x77>

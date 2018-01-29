@@ -20,11 +20,10 @@ int
 main(void)
 {
   int max = 32, active_procs = 0;
-  struct uproc* utable;
-  utable = (struct uproc*) malloc(max * sizeof(struct uproc));
+  struct uproc* utable = (struct uproc*) malloc(max * sizeof(struct uproc));
   // system call -> sysproc.c -> proc.c -> return
   active_procs = getprocs(max, utable); // populate utable
-  // error somewhere along the way
+  // error from sysproc.c - valued not pulled from stack
   if (active_procs == -1) {
       printf(1, "Error in active process table creation.\n");
       free(utable);

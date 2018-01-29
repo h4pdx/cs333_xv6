@@ -7,7 +7,6 @@
 #include "mmu.h"
 #include "proc.h"
 #ifdef CS333_P2
-#include "spinlock.h"
 #include "uproc.h"
 #endif
 
@@ -137,7 +136,10 @@ sys_setuid(void) {
     if (argint(0, &n) < 0) {
         return -1;
     }
-    // if (n < 0 || n > 32k) {}
+    if (n < 0 || n > 32767) {
+        proc->uid = 0;
+        return -1;
+    }
     proc->uid = n;
     return 0;
 }
@@ -149,7 +151,10 @@ sys_setgid(void) {
     if (argint(0, &n) < 0) {
         return -1;
     }
-    // if (n < 0 || n > 32k) {}
+    if (n < 0 || n > 32767) {
+        proc->gid = 0;
+        return -1;
+    }
     proc->gid = n;
     return 0;
 }
