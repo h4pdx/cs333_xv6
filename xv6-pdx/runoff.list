@@ -91,3 +91,4 @@ testsetuid.c
 testSched.c
 testids.c
 uproc.h
+ps-test.c
