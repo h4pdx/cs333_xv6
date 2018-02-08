@@ -68,13 +68,16 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 #ifdef CS333_P1
-  uint start_ticks;
+  uint start_ticks;     // Records at what global tick this proc started
 #endif
 #ifdef CS333_P2
-  uint uid;                 // user ID
-  uint gid;                 // group ID
-  uint cpu_ticks_total;     // total elapsed ticks in a CPU
-  uint cpu_ticks_in;        // ticks when scheduled
+  uint uid;                 // User ID
+  uint gid;                 // Group ID
+  uint cpu_ticks_total;     // Total elapsed ticks in a CPU
+  uint cpu_ticks_in;        // Ticks when scheduled
+#endif
+#ifdef CS333_P3P4
+  struct proc *next;    // Pointer to next process in new lists
 #endif
 };
 

@@ -3,6 +3,10 @@ struct rtcdate;
 #ifdef CS333_P2
 struct uproc;
 #endif
+#ifdef CS333_P3P4
+enum procstate;
+struct proc;
+#endif
 
 // system calls
 int fork(void);
@@ -38,7 +42,6 @@ int setuid(uint);
 int setgid(uint);
 int getprocs(uint, struct uproc*);
 #endif
-
 // ulib.c
 int stat(char*, struct stat*);
 char* strcpy(char*, char*);

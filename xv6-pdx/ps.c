@@ -4,15 +4,15 @@
 #include "uproc.h"
 
 void
-elapsed(uint ticks)
+elapsed(uint e)
 {
     uint elapsed, whole_sec, milisec_ten, milisec_hund, milisec_thou;
-    elapsed = ticks; // find original elapsed time
+    elapsed = e; // find original elapsed time
     whole_sec = elapsed / 1000; // the the left of the decimal point
     // % to shave off leading digit of elapsed for decimal place calcs
     milisec_ten = (elapsed %= 1000) / 100; // divide and round up to nearest int
     milisec_hund = (elapsed %= 100) / 10; // shave off previously counted int, repeat
-    milisec_thou = elapsed %= 10; // determine thousandth place
+    milisec_thou = (elapsed %= 10); // determine thousandth place
     printf(1, "\t%d.%d%d%d", whole_sec, milisec_ten, milisec_hund, milisec_thou);
 }
 
@@ -23,7 +23,7 @@ main(void)
   struct uproc* utable = (struct uproc*) malloc(max * sizeof(struct uproc));
   // system call -> sysproc.c -> proc.c -> return
   active_procs = getprocs(max, utable); // populate utable
-  // error from sysproc.c - valued not pulled from stack
+  // error from sysproc.c - value not pulled from stack
   if (active_procs == -1) {
       printf(1, "Error in active process table creation.\n");
       free(utable);

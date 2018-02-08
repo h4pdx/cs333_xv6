@@ -20,9 +20,9 @@ main(int argc, char * argv[])
    e:	51                   	push   %ecx
    f:	83 ec 20             	sub    $0x20,%esp
   12:	89 cb                	mov    %ecx,%ebx
-    if (argc < 0) {
+    if (argc <= 0) {
   14:	83 3b 00             	cmpl   $0x0,(%ebx)
-  17:	79 05                	jns    1e <main+0x1e>
+  17:	7f 05                	jg     1e <main+0x1e>
         exit();
   19:	e8 6c 04 00 00       	call   48a <exit>
     }
@@ -49,12 +49,12 @@ main(int argc, char * argv[])
         exit();
   6c:	e8 19 04 00 00       	call   48a <exit>
     }
-    pid = fork(); // fork new process
-  71:	e8 0c 04 00 00       	call   482 <fork>
-  76:	89 45 ec             	mov    %eax,-0x14(%ebp)
     start_time = uptime(); // start uptime
-  79:	e8 a4 04 00 00       	call   522 <uptime>
-  7e:	89 45 f4             	mov    %eax,-0xc(%ebp)
+  71:	e8 ac 04 00 00       	call   522 <uptime>
+  76:	89 45 f4             	mov    %eax,-0xc(%ebp)
+    pid = fork(); // fork new process
+  79:	e8 04 04 00 00       	call   482 <fork>
+  7e:	89 45 ec             	mov    %eax,-0x14(%ebp)
     if (pid > 0) {
   81:	83 7d ec 00          	cmpl   $0x0,-0x14(%ebp)
   85:	74 0a                	je     91 <main+0x91>
@@ -111,7 +111,7 @@ main(int argc, char * argv[])
  102:	89 d0                	mov    %edx,%eax
  104:	c1 e8 05             	shr    $0x5,%eax
  107:	89 45 e0             	mov    %eax,-0x20(%ebp)
-    milisec_ten = ((elapsed_time %= 100) / 10);
+    milisec_hund = ((elapsed_time %= 100) / 10);
  10a:	8b 4d e8             	mov    -0x18(%ebp),%ecx
  10d:	ba 1f 85 eb 51       	mov    $0x51eb851f,%edx
  112:	89 c8                	mov    %ecx,%eax
@@ -127,7 +127,7 @@ main(int argc, char * argv[])
  12d:	f7 e2                	mul    %edx
  12f:	89 d0                	mov    %edx,%eax
  131:	c1 e8 03             	shr    $0x3,%eax
- 134:	89 45 e0             	mov    %eax,-0x20(%ebp)
+ 134:	89 45 dc             	mov    %eax,-0x24(%ebp)
 
     printf(1, "%s ran in %d.%d%d seconds\n", argv[1], sec, milisec_ten, milisec_hund);
  137:	8b 43 04             	mov    0x4(%ebx),%eax

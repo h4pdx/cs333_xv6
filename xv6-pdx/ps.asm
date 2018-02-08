@@ -9,13 +9,13 @@ Disassembly of section .text:
 #include "uproc.h"
 
 void
-elapsed(uint ticks)
+elapsed(uint e)
 {
    0:	55                   	push   %ebp
    1:	89 e5                	mov    %esp,%ebp
    3:	83 ec 28             	sub    $0x28,%esp
     uint elapsed, whole_sec, milisec_ten, milisec_hund, milisec_thou;
-    elapsed = ticks; // find original elapsed time
+    elapsed = e; // find original elapsed time
    6:	8b 45 08             	mov    0x8(%ebp),%eax
    9:	89 45 f4             	mov    %eax,-0xc(%ebp)
     whole_sec = elapsed / 1000; // the the left of the decimal point
@@ -60,7 +60,7 @@ elapsed(uint ticks)
   73:	89 d0                	mov    %edx,%eax
   75:	c1 e8 03             	shr    $0x3,%eax
   78:	89 45 e8             	mov    %eax,-0x18(%ebp)
-    milisec_thou = elapsed %= 10; // determine thousandth place
+    milisec_thou = (elapsed %= 10); // determine thousandth place
   7b:	8b 4d f4             	mov    -0xc(%ebp),%ecx
   7e:	ba cd cc cc cc       	mov    $0xcccccccd,%edx
   83:	89 c8                	mov    %ecx,%eax
@@ -125,7 +125,7 @@ main(void)
  102:	e8 a5 05 00 00       	call   6ac <getprocs>
  107:	83 c4 10             	add    $0x10,%esp
  10a:	89 45 dc             	mov    %eax,-0x24(%ebp)
-  // error from sysproc.c - valued not pulled from stack
+  // error from sysproc.c - value not pulled from stack
   if (active_procs == -1) {
  10d:	83 7d dc ff          	cmpl   $0xffffffff,-0x24(%ebp)
  111:	75 25                	jne    138 <main+0x77>
