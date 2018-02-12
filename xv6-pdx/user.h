@@ -42,6 +42,7 @@ int setuid(uint);
 int setgid(uint);
 int getprocs(uint, struct uproc*);
 #endif
+
 // ulib.c
 int stat(char*, struct stat*);
 char* strcpy(char*, char*);

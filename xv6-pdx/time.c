@@ -8,9 +8,10 @@ main(int argc, char * argv[])
     if (argc <= 0) {
         exit();
     }
-    uint start_time = 0, end_time = 0, pid = 0, elapsed_time = 0, sec = 0, milisec_ten = 0, milisec_hund = 0;
+    uint start_time = 0, end_time = 0, pid = 0,
+         elapsed_time = 0, sec = 0, milisec_ten = 0, milisec_hund = 0, milisec_thou = 0;
     if (argc == 1) {
-        printf(1, "%s ran in 0.00 seconds\n", argv[0]);
+        printf(1, "%s ran in 0.000 seconds\n", argv[0]);
         exit();
     }
     start_time = uptime(); // start uptime
@@ -27,8 +28,9 @@ main(int argc, char * argv[])
     sec = (elapsed_time / 1000); // divide for whole seconds
     milisec_ten = ((elapsed_time %= 1000) / 100); // mod and divide for miliseconds
     milisec_hund = ((elapsed_time %= 100) / 10);
+    milisec_thou = (elapsed_time %= 10);
 
-    printf(1, "%s ran in %d.%d%d seconds\n", argv[1], sec, milisec_ten, milisec_hund);
+    printf(1, "%s ran in %d.%d%d%d seconds\n", argv[1], sec, milisec_ten, milisec_hund, milisec_thou);
     exit();
 }
 

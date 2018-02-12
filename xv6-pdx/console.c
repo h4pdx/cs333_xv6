@@ -190,6 +190,9 @@ void
 consoleintr(int (*getc)(void))
 {
   int c, doprocdump = 0;
+#ifdef CS333_P3P4
+  int ctrlkey = 0; // 1-4, depending on what list to show
+#endif
 
   acquire(&cons.lock);
   while((c = getc()) >= 0){
@@ -210,6 +213,20 @@ consoleintr(int (*getc)(void))
         consputc(BACKSPACE);
       }
       break;
+#ifdef CS333_P3P4
+    case C('R'):
+      ctrlkey = 1;
+      break;
+    case C('F'):
+      ctrlkey = 2;
+      break;
+    case C('S'):
+      ctrlkey = 3;
+      break;
+    case C('Z'):
+      ctrlkey = 4;
+      break;
+#endif
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
@@ -227,6 +244,31 @@ consoleintr(int (*getc)(void))
   if(doprocdump) {
     procdump();  // now call procdump() wo. cons.lock held
   }
+#ifdef CS333_P3P4
+  // run Ready list display function
+  if (ctrlkey == 1) {
+      //cprintf("Ready list not implemented yet..\n");
+      printReadyList();
+      ctrlkey = 0;
+  }
+  // run Free list display function
+  if (ctrlkey == 2) {
+      printFreeList();
+      ctrlkey = 0;
+  }
+  // run Sleep list display function
+  if (ctrlkey == 3) {
+     // cprintf("Sleep list not implemented yet..\n");
+      printSleepList();
+      ctrlkey = 0;
+  }
+  // run Zombie list display function
+  if (ctrlkey == 4) {
+      //cprintf("Zombie list not implemented yet..\n");
+      printZombieList();
+      ctrlkey = 0;
+  }
+#endif
 }
 
 int

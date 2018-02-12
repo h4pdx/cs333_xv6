@@ -86,3 +86,10 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+#ifdef CS333_P3P4
+void printReadyList(void);
+void printFreeList(void);
+void printSleepList(void);
+void printZombieList(void);
+#endif
