@@ -35,6 +35,7 @@ main(void)
       free(utable);
       exit();
   }
+#ifndef CS333_P3P4
   // loop utable and print process information
   else if (active_procs > 0) {
       printf(1, "\n%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
@@ -48,6 +49,20 @@ main(void)
       }
       printf(1, "\n");
   }
+#else
+  else if (active_procs > 0) {
+      printf(1, "\n%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
+              "PID", "Name", "UID", "GID", "PPID", "Prio", "Elapsed", "CPU", "State", "Size");
+      for (int i = 0; i < active_procs; ++i) {
+          printf(1, "\n%d\t%s\t%d\t%d\t%d\t%d",
+                  utable[i].pid, utable[i].name, utable[i].uid, utable[i].gid, utable[i].ppid, utable[i].priority);
+          elapsed(utable[i].elapsed_ticks);
+          elapsed(utable[i].CPU_total_ticks);
+          printf(1, "\t%s\t%d", utable[i].state, utable[i].size);
+      }
+      printf(1, "\n");
+  }
+#endif
   free(utable);
   exit();
 }

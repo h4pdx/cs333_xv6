@@ -93,3 +93,4 @@ testids.c
 uproc.h
 ps-test.c
 zFree.c
+p4test.c
