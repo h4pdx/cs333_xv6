@@ -1523,9 +1523,15 @@ setpriority(int pid, int priority) {
     for (int i = 0; i <= MAX; ++i) {
         p = ptable.pLists.ready[i]; // traverse ready list array
         while (p) {
-            // match PIDs
-            if (p->pid == pid) {
+            // match PIDs and only if the new priority value changes anything
+            if (((p->pid) == pid) && ((p->priority) != priority)) {
+                if (removeFromStateList(&ptable.pLists.ready[p->priority], p) < 0) {
+                    cprintf("setpriority: remove from ready list[%d] failed.\n", p->priority);
+                }// remove from old ready list
                 p->priority = priority; // set priority
+                if (addToStateListEnd(&ptable.pLists.ready[p->priority], p) < 0) {
+                    cprintf("setpriority: add to ready list[%d] failed.\n", p->priority);
+                } //  add to new ready list
                 p->budget = BUDGET; // reset budget
                 release(&ptable.lock); // release lock
                 return 0; // return success
@@ -1535,7 +1541,7 @@ setpriority(int pid, int priority) {
     }
     p = ptable.pLists.running; // repeat process if PID not found in ready lists
     while (p) {
-        if (p->pid == pid) {
+        if (((p->pid) == pid) && ((p->priority) != priority)) {
             p->priority = priority;
             p->budget = BUDGET;
             release(&ptable.lock);
@@ -1545,7 +1551,7 @@ setpriority(int pid, int priority) {
     }
     p = ptable.pLists.sleep; // continue search in sleep list
     while (p) {
-        if (p->pid == pid) {
+        if (((p->pid) == pid) && ((p->priority) != priority)) {
             p->priority = priority;
             p->budget = BUDGET;
             release(&ptable.lock);
