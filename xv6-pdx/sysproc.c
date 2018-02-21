@@ -137,7 +137,6 @@ sys_setuid(void) {
         return -1;
     }
     if (n < 0 || n > 32767) {
-        proc->uid = 0;
         return -1;
     }
     proc->uid = n;
@@ -152,7 +151,6 @@ sys_setgid(void) {
         return -1;
     }
     if (n < 0 || n > 32767) {
-        proc->gid = 0;
         return -1;
     }
     proc->gid = n;
@@ -167,11 +165,34 @@ sys_getprocs(void) {
     if (argint(0, &m) < 0) {
         return -1;
     }
-    if (argptr(1, (void*)&u, sizeof(struct uproc)) < 0) {
+    // sizeof * MAX
+    if (argptr(1, (void*)&u, (sizeof(struct uproc) * m)) < 0) {
         return -1;
     }
     return getprocs(m, u);
 }
-
 #endif
 
+#ifdef CS333_P3P4
+int
+sys_setpriority(void) {
+    int n, m;
+    // PID argument from stack
+    if (argint(0, &n) < 0) {
+        return -1;
+    }
+    // priority argument
+    if (argint(0, &m) < 0) {
+        return -1;
+    }
+    // check bounds of PID argument
+    if (n < 0 || n > 32767) {
+        return -1;
+    }
+    // check bounds of priority argument
+    if (m < 0 || m > MAX) {
+        return -1;
+    }
+    return setpriority(n, m); // pass to user-side
+}
+#endif

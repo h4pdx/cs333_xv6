@@ -725,7 +725,7 @@ scheduler(void)
             // Process is done running for now.
             // It should have changed its p->state before coming back.
             proc = 0;
-        
+        }
         release(&ptable.lock);
         // if idle, wait for next interrupt
         if (idle) {
@@ -733,7 +733,7 @@ scheduler(void)
             hlt();
         }
     }
-}
+}  
 
 #else
 // Project 3 scheduler
@@ -742,8 +742,8 @@ scheduler(void)
 {
     struct proc *p;
     int idle;  // for checking if processor is idle
-    int ran; // loop condition 
-    for(;;){
+    int ran; // ready list loop condition 
+    for(;;) {
         // Enable interrupts on this processor.
         sti();
         idle = 1;  // assume idle unless we schedule a process
@@ -756,7 +756,7 @@ scheduler(void)
             ptable.promoteAtTime = (ticks + TIME_TO_PROMOTE); // update next time we will promote everything
         }
         for (int i = 0; (i <= MAX) && (ran == 0); ++i) {
-            // take first process of list that isnt 
+            // take first process on first valid list
             p = ptable.pLists.ready[i];
             if (p) {
                 // assign pointer, aseert correct state
@@ -781,7 +781,7 @@ scheduler(void)
                 // Process is done running for now.
                 // It should have changed its p->state before coming back.
                 proc = 0;
-                ++ran; // exit loop after this
+                ran = 1; // exit loop after this
             }
         }
         release(&ptable.lock);
@@ -933,7 +933,7 @@ sleep(void *chan, struct spinlock *lk)
 #ifdef CS333_P3P4
     proc->budget -= (ticks - proc->cpu_ticks_in); // update budegt, then check
     if ((proc->budget) <= 0) {
-        // priority cant be greater than MAX
+        // priority cant be greater than MAX bc it is literal index of ready list array
         if ((proc->priority) < MAX) {
             ++(proc->priority); // Demotion
         }
@@ -965,9 +965,11 @@ wakeup1(void *chan)
 {
     struct proc *p;
 
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-        if(p->state == SLEEPING && p->chan == chan)
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if(p->state == SLEEPING && p->chan == chan) {
             p->state = RUNNABLE;
+        }
+    }
 }
 #else
 // P3 wakeup1
@@ -1137,6 +1139,7 @@ elapsed_time(uint p_ticks)
 }
 #endif
 
+#ifndef CS333_P3P4
 void
 procdump(void)
 {
@@ -1147,24 +1150,43 @@ procdump(void)
 
     // formatting if project 1 is enabled in makefile
     // and only if P2 is NOT enabled
-#ifndef CS333_P2
-#ifdef CS333_P1
-    cprintf("\n%s\t%s\t%s\t%s\t%s\n",
-            "PID", "State", "Name", "Elapsed", "PCs");
-#endif
-#endif
+    cprintf("\n%s\t%s\t%s\t%s\n", "PID", "State", "Name", "PCs");
 
     // formatting if project 2 is enabled in makefile
-/*
-#ifdef CS333_P2
-    cprintf("\n%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-            "PID", "Name", "UID", "GID", "PPID", "Elapsed", "CPU", "State", "Size", "PCs");
-#endif
-*/
-#ifdef CS333_P3P4
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state == UNUSED) {
+            continue;
+        }
+        if(p->state >= 0 && p->state < NELEM(states) && states[p->state]) {
+            state = states[p->state];
+        }
+        else {
+            state = "???";
+        }
+        cprintf("%d\t%s\t%s", p->pid, state, p->name);
+        if(p->state == SLEEPING){
+            getcallerpcs((uint*)p->context->ebp+2, pc);
+            for(i=0; i<10 && pc[i] != 0; i++) {
+                cprintf("\t%p", pc[i]);
+            }
+        }
+        cprintf("\n");
+    }
+}
+#else
+
+// Project 3 & 4
+void
+procdump(void)
+{
+    int i;
+    struct proc *p;
+    char *state;
+    uint pc[10];
+
     cprintf("\n%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
             "PID", "Name", "UID", "GID", "PPID", "Prio", "Elapsed", "CPU", "State", "Size", "PCs");
-#endif
 
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if(p->state == UNUSED)
@@ -1173,31 +1195,12 @@ procdump(void)
             state = states[p->state];
         else
             state = "???";
-        // original display without P1 or P2
-        // only display if project 2 is NOT enabled
-#ifndef CS333_P2
-        cprintf("%d\t%s\t%s", p->pid, state, p->name);
-#endif
-
-        // formatting if project 1 is enabled in makefile
-        // only display if project 2 is NOT enabled
-#ifndef CS333_P2
-#ifdef CS333_P1
-        elapsed_time(ticks - p->start_ticks);
-#endif
-#endif
-
-        // formatting if project 2 is enabled in makefile
-#ifdef CS333_P2
         cprintf("%d\t%s\t%d\t%d\t%d",
                 p->pid, p->name, p->uid, p->gid, p->parent->pid);
-#ifdef CS333_P3P4
         cprintf("\t%d", p->priority);
-#endif
         elapsed_time(ticks - p->start_ticks);
         elapsed_time(p->cpu_ticks_total);
         cprintf("\t%s\t%d", state, p->sz);
-#endif
 
         if(p->state == SLEEPING){
             getcallerpcs((uint*)p->context->ebp+2, pc);
@@ -1207,6 +1210,7 @@ procdump(void)
         cprintf("\n");
     }
 }
+#endif
 
 #ifdef CS333_P2
 // loop process table and copy active processes, return number of copied procs
@@ -1228,7 +1232,9 @@ getprocs(uint max, struct uproc *table)
             } else {
                 table[i].ppid = p->parent->pid;
             }
+#ifdef CS333_P3P4
             table[i].priority = p->priority;
+#endif
             table[i].elapsed_ticks = (ticks - p->start_ticks);
             table[i].CPU_total_ticks = p->cpu_ticks_total;
             safestrcpy(table[i].state, states[p->state], STRMAX);
@@ -1243,69 +1249,6 @@ getprocs(uint max, struct uproc *table)
 #endif
 
 #ifdef CS333_P3P4
-/*
-// PROJECT 4
-static void
-assertPriority(struct proc* p, uint prio) {
-    if (!p) {
-        panic("assertPriority: invalid proc argument.\n");
-    }
-    if (p->priority != prio) {
-        panic("assertPriority: process in wrong priority queue.\n");
-    }
-}
-*/
-
-// loop thru ready list array
-// loop thru list at each index
-// start from 2nd highest queue (1st queue can't promote)
-// remove process from ready[p->priority]->
-// -> decrement priority value (lower number == higher priority) ->
-// -> add to new ready list [p->priority]
-// upwards to lowest priority queue
-static void
-promoteAll(void) {
-    struct proc* p;
-    struct proc* current;
-    for (int i = 1; i <= MAX; ++i) {
-        if (ptable.pLists.ready[i]) {
-            current = ptable.pLists.ready[i];
-            p = 0;
-            while (current) {
-                p = current;
-                current = current->next;
-                assertState(p, RUNNABLE);
-                if (removeFromStateList(&ptable.pLists.ready[p->priority], p) < 0) {
-                    cprintf("promoteAll: Could not remove from ready list.\n");
-                }
-                if (p->priority > 0) {
-                    --(p->priority);
-                }
-                if (addToStateListEnd(&ptable.pLists.ready[p->priority], p) < 0) {
-                    cprintf("promoteAll: Could not add to ready list.\n");
-                }
-            }
-        }
-    }
-    if (ptable.pLists.sleep) {
-        p = ptable.pLists.sleep;
-        while (p) {
-            if (p->priority > 0) {
-                --(p->priority); // promote process
-            }
-            p = p->next;
-        }
-    }
-    if (ptable.pLists.running) {
-        p = ptable.pLists.running;
-        while (p) {
-            if (p->priority > 0) {
-                --(p->priority); // promote process
-            }
-            p = p->next;
-        }
-    }
-}
 
 
 //PROJECT 3
@@ -1364,8 +1307,11 @@ addToStateListEnd(struct proc** sList, struct proc* p) {
 // search and remove process based on pointer address
 static int
 removeFromStateList(struct proc** sList, struct proc* p) {
-    if (!(*sList) || !p) {
+    if (!p) {
         panic("Invalid process structures.");
+    }
+    if (!(*sList)) {
+        return -1;
     }
     // if p is the first element in list
     if (p == (*sList)) {
@@ -1504,5 +1450,110 @@ printZombieList(void) {
     else {
         cprintf("\nNo processes on Zombie List.\n");
     }
+}
+
+//
+// ------------------------------------------------------------------------
+// PPROJECT 4
+
+// loop thru ready list array
+// loop thru list at each index
+// start from 2nd highest queue (1st queue can't promote)
+// remove process from ready[p->priority]->
+// -> decrement priority value (lower number == higher priority) ->
+// -> add to new ready list [p->priority]
+// upwards to lowest priority queue
+
+// Promote all ACTIVE(RUNNING, RUNNABLE, SLEEPING) processes one priority level
+// this is only called in scheduler(), which holds &ptable.lock
+static void
+promoteAll(void) {
+    struct proc* p; // main ptr
+    struct proc* current; // 2nd ptr needed for traversal + list management
+    for (int i = 1; i <= MAX; ++i) {
+        // traverse ready list array
+        if (ptable.pLists.ready[i]) {
+            current = ptable.pLists.ready[i]; // initialize
+            p = 0;
+            while (current) {
+                p = current; // p is the current process to adjust
+                current = current->next; // current traverses one ahead
+                assertState(p, RUNNABLE); // assert state, we need to swap ready lists
+                if (removeFromStateList(&ptable.pLists.ready[p->priority], p) < 0) {
+                    cprintf("promoteAll: Could not remove from ready list.\n");
+                } // take off lower priority (whatever one it is)
+                if (p->priority > 0) {
+                    --(p->priority); // adjust upward (toward zero)
+                } // add to higher priority list
+                if (addToStateListEnd(&ptable.pLists.ready[p->priority], p) < 0) {
+                    cprintf("promoteAll: Could not add to ready list.\n");
+                }
+            }
+        }
+    }
+    // promote all SLEEPING processes
+    if (ptable.pLists.sleep) {
+        p = ptable.pLists.sleep;
+        while (p) {
+            if (p->priority > 0) {
+                --(p->priority); // promote process
+            }
+            p = p->next;
+        }
+    }
+    // promote all RUNNING processes
+    if (ptable.pLists.running) {
+        p = ptable.pLists.running;
+        while (p) {
+            if (p->priority > 0) {
+                --(p->priority); // promote process
+            }
+            p = p->next;
+        }
+    }
+    // nothing to return, just promote anything if they are there
+}
+// set priority system call
+// bounds enforced in sysproc.c (kernel-side)
+// active processes: RUNNABLE, RUNNING, SLEEPING
+int
+setpriority(int pid, int priority) {
+    struct proc* p;
+    acquire(&ptable.lock); // maintain atomicity
+    for (int i = 0; i <= MAX; ++i) {
+        p = ptable.pLists.ready[i]; // traverse ready list array
+        while (p) {
+            // match PIDs
+            if (p->pid == pid) {
+                p->priority = priority; // set priority
+                p->budget = BUDGET; // reset budget
+                release(&ptable.lock); // release lock
+                return 0; // return success
+            }
+            p = p->next;
+        }
+    }
+    p = ptable.pLists.running; // repeat process if PID not found in ready lists
+    while (p) {
+        if (p->pid == pid) {
+            p->priority = priority;
+            p->budget = BUDGET;
+            release(&ptable.lock);
+            return 0; // return success
+        }
+        p = p->next;
+    }
+    p = ptable.pLists.sleep; // continue search in sleep list
+    while (p) {
+        if (p->pid == pid) {
+            p->priority = priority;
+            p->budget = BUDGET;
+            release(&ptable.lock);
+            return 0; //  return success
+        }
+        p = p->next;
+    }
+    release(&ptable.lock);
+    return -1; // return error if no PID match is found
 }
 #endif

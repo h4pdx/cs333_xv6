@@ -127,8 +127,10 @@ uint            getgid(void);
 uint            getppid(void);
 int             setuid(uint);
 int             setgid(uint);
-//int             copyprocs(uint, struct uproc*);
 int             getprocs(uint, struct uproc*);
+#endif
+#ifdef CS333_P3P4
+int             setpriority(int pid, int priority);
 #endif
 
 // swtch.S
