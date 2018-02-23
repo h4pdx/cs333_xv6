@@ -15,6 +15,6 @@
 #define UID          0
 #define GID          0
 // Project 4
-#define TIME_TO_PROMOTE 1000
-#define MAX 3
-#define BUDGET  250
+#define TIME_TO_PROMOTE 500000
+#define MAX 7
+#define BUDGET  100000

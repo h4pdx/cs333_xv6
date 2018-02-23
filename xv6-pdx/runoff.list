@@ -94,3 +94,5 @@ uproc.h
 ps-test.c
 zFree.c
 p4test.c
+p4test2.c
+tPrio.c

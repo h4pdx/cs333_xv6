@@ -81,7 +81,7 @@ struct proc {
   struct proc *next;    // Pointer to next process in new lists
   // project 4
   uint priority;
-  int budget; // can be zero?
+  int budget;
 #endif
 };
 

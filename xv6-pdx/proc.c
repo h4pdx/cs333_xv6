@@ -475,6 +475,7 @@ void
 exit(void)
 {
     struct proc *p;
+    struct proc *current;
     int fd;
 
     if(proc == initproc)
@@ -499,13 +500,14 @@ exit(void)
     wakeup1(proc->parent);
     
     // Pass abandoned children to init.
-    p = ptable.pLists.zombie;
-    while (p) {
+    current = ptable.pLists.zombie;
+    while (current) {
+        p = current;
+        current = current->next;
         if (p->parent == proc) {
             p->parent = initproc;
             wakeup1(initproc);
         }
-        p = p->next;
     }
     p = ptable.pLists.running; // now running list
     while (p) {
@@ -752,6 +754,7 @@ scheduler(void)
         acquire(&ptable.lock);
 
         if ((ptable.promoteAtTime) == ticks) {
+            //cprintf("Promotion occurred.\n");
             promoteAll(); // RUNNING, RUNNABLE, SLEEPING
             ptable.promoteAtTime = (ticks + TIME_TO_PROMOTE); // update next time we will promote everything
         }
@@ -762,7 +765,7 @@ scheduler(void)
                 // assign pointer, aseert correct state
                 assertState(p, RUNNABLE);
                 // take 1st process on ready list
-                p = removeHead(&ptable.pLists.ready[i]);
+                p = removeHead(&ptable.pLists.ready[p->priority]);
                 if (!p) {
                     panic("Scheduler: removeHead failed.");
                 }
@@ -1259,7 +1262,6 @@ assertState(struct proc* p, enum procstate state) {
         panic("assertState: invalid proc argument.\n");
     }
     if (p->state != state) {
-        //cprintf("Process in state: %s.\n", p->state);
         panic("assertState: process in wrong state.\n");
     }
 }
@@ -1524,7 +1526,7 @@ setpriority(int pid, int priority) {
         p = ptable.pLists.ready[i]; // traverse ready list array
         while (p) {
             // match PIDs and only if the new priority value changes anything
-            if (((p->pid) == pid) && ((p->priority) != priority)) {
+            if (p->pid == pid) {
                 if (removeFromStateList(&ptable.pLists.ready[p->priority], p) < 0) {
                     cprintf("setpriority: remove from ready list[%d] failed.\n", p->priority);
                 }// remove from old ready list
@@ -1533,6 +1535,7 @@ setpriority(int pid, int priority) {
                     cprintf("setpriority: add to ready list[%d] failed.\n", p->priority);
                 } //  add to new ready list
                 p->budget = BUDGET; // reset budget
+                //cprintf("setPriority: ready list priority set.\n");
                 release(&ptable.lock); // release lock
                 return 0; // return success
             }
@@ -1541,9 +1544,10 @@ setpriority(int pid, int priority) {
     }
     p = ptable.pLists.running; // repeat process if PID not found in ready lists
     while (p) {
-        if (((p->pid) == pid) && ((p->priority) != priority)) {
+        if (p->pid == pid) {
             p->priority = priority;
             p->budget = BUDGET;
+            //cprintf("setPriority: running list priority set.\n");
             release(&ptable.lock);
             return 0; // return success
         }
@@ -1551,14 +1555,16 @@ setpriority(int pid, int priority) {
     }
     p = ptable.pLists.sleep; // continue search in sleep list
     while (p) {
-        if (((p->pid) == pid) && ((p->priority) != priority)) {
+        if (p->pid == pid) {
             p->priority = priority;
             p->budget = BUDGET;
+            //cprintf("setPriority: sleep list priority set.\n");
             release(&ptable.lock);
             return 0; //  return success
         }
         p = p->next;
     }
+    //cprintf("setPriority: No priority set.\n");
     release(&ptable.lock);
     return -1; // return error if no PID match is found
 }

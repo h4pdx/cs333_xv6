@@ -182,7 +182,7 @@ sys_setpriority(void) {
         return -1;
     }
     // priority argument
-    if (argint(0, &m) < 0) {
+    if (argint(1, &m) < 0) {
         return -1;
     }
     // check bounds of PID argument
