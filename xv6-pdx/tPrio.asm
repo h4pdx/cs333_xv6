@@ -20,6 +20,8 @@ main(void) {
    e:	83 ec 14             	sub    $0x14,%esp
     int pid, prio;
     int rc;
+    //int rc2;
+    //int rc3;
     pid = getpid();
   11:	e8 b6 05 00 00       	call   5cc <getpid>
   16:	89 45 f4             	mov    %eax,-0xc(%ebp)
@@ -116,7 +118,7 @@ main(void) {
  10e:	68 88 13 00 00       	push   $0x1388
  113:	e8 c4 04 00 00       	call   5dc <sleep>
  118:	83 c4 10             	add    $0x10,%esp
-
+   
     printf(1, "Setting priority to 100 (Expected: FAIL).\n");
  11b:	83 ec 08             	sub    $0x8,%esp
  11e:	68 7c 0b 00 00       	push   $0xb7c

@@ -232,7 +232,7 @@ userinit(void)
 void
 userinit(void)
 {
-    ptable.promoteAtTime = TIME_TO_PROMOTE;
+    ptable.promoteAtTime = TIME_TO_PROMOTE; // Project 4, initialize promotion timer
     struct proc *p;
     extern char _binary_initcode_start[], _binary_initcode_size[];
 
@@ -754,7 +754,6 @@ scheduler(void)
         acquire(&ptable.lock);
 
         if ((ptable.promoteAtTime) == ticks) {
-            //cprintf("Promotion occurred.\n");
             promoteAll(); // RUNNING, RUNNABLE, SLEEPING
             ptable.promoteAtTime = (ticks + TIME_TO_PROMOTE); // update next time we will promote everything
         }
@@ -934,7 +933,7 @@ sleep(void *chan, struct spinlock *lk)
     proc->state = SLEEPING;
 
 #ifdef CS333_P3P4
-    proc->budget -= (ticks - proc->cpu_ticks_in); // update budegt, then check
+    proc->budget -= (ticks - proc->cpu_ticks_in); // update budget, then check
     if ((proc->budget) <= 0) {
         // priority cant be greater than MAX bc it is literal index of ready list array
         if ((proc->priority) < MAX) {
@@ -942,7 +941,7 @@ sleep(void *chan, struct spinlock *lk)
         }
         proc->budget = BUDGET; // Reset budget
     }
-    if (addToStateListEnd(&ptable.pLists.sleep, proc) < 0) {
+    if (addToStateListHead(&ptable.pLists.sleep, proc) < 0) {
         cprintf("Could not add SLEEPING proc to list (sleep()).\n");
     }
 #endif
