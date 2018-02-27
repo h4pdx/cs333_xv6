@@ -10851,12 +10851,12 @@ sleep(void *chan, struct spinlock *lk)
 801056a9:	c7 80 98 00 00 00 64 	movl   $0x64,0x98(%eax)
 801056b0:	00 00 00 
     }
-    if (addToStateListHead(&ptable.pLists.sleep, proc) < 0) {
+    if (addToStateListEnd(&ptable.pLists.sleep, proc) < 0) {
 801056b3:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 801056b9:	83 ec 08             	sub    $0x8,%esp
 801056bc:	50                   	push   %eax
 801056bd:	68 c4 70 11 80       	push   $0x801170c4
-801056c2:	e8 b5 08 00 00       	call   80105f7c <addToStateListHead>
+801056c2:	e8 21 09 00 00       	call   80105fe8 <addToStateListEnd>
 801056c7:	83 c4 10             	add    $0x10,%esp
 801056ca:	85 c0                	test   %eax,%eax
 801056cc:	79 10                	jns    801056de <sleep+0x148>

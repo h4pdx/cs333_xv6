@@ -941,7 +941,7 @@ sleep(void *chan, struct spinlock *lk)
         }
         proc->budget = BUDGET; // Reset budget
     }
-    if (addToStateListHead(&ptable.pLists.sleep, proc) < 0) {
+    if (addToStateListEnd(&ptable.pLists.sleep, proc) < 0) {
         cprintf("Could not add SLEEPING proc to list (sleep()).\n");
     }
 #endif
