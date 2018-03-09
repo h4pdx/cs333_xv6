@@ -2,6 +2,9 @@
 #include "stat.h"
 #include "user.h"
 #include "fs.h"
+#ifdef CS333_P5
+#include "print_mode.c"
+#endif
 
 char*
 fmtname(char *path)
@@ -43,7 +46,13 @@ ls(char *path)
   
   switch(st.type){
   case T_FILE:
+#ifndef CS333_P5
     printf(1, "%s %d %d %d\n", fmtname(path), st.type, st.ino, st.size);
+#else
+    // Print mode bits & new format
+    print_mode(&st);
+    printf(1, " %s %d\t%d\t%d\t%d\n", fmtname(path), st.uid, st.gid, st.ino, st.size);
+#endif
     break;
   
   case T_DIR:
@@ -63,7 +72,13 @@ ls(char *path)
         printf(1, "ls: cannot stat %s\n", buf);
         continue;
       }
+#ifndef CS333_P5
       printf(1, "%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+#else
+      // Print mode bits & new format
+      print_mode(&st);
+      printf(1, " %s %d\t%d\t%d\t%d\n", fmtname(buf), st.uid, st.gid, st.ino, st.size);
+#endif
     }
     break;
   }
@@ -75,6 +90,10 @@ main(int argc, char *argv[])
 {
   int i;
 
+#ifdef CS333_P5
+  // New column headers
+  printf(1, "mode\t\tname\tuid\tgid\tinode\tsize\n");
+#endif
   if(argc < 2){
     ls(".");
     exit();

@@ -1372,7 +1372,7 @@ printReadyList(void) {
             struct proc* current = ptable.pLists.ready[i];
             while (current) {
                 if (current->next) {
-                    cprintf("(%d, %d)-> ", current->pid, current->budget);
+                    cprintf("(%d, %d) -> ", current->pid, current->budget);
                 } else {
                     cprintf("(%d, %d)", current->pid, current->budget);
                 }
@@ -1383,7 +1383,6 @@ printReadyList(void) {
         else {
             cprintf("\n%d: Empty.\n", i);
         }
-        //++i;
     }
 }
 
@@ -1397,11 +1396,7 @@ printFreeList(void) {
             ++size; // cycle list and keep count
             current = current->next;
         }
-        /*
-        for (struct proc* current = ptable.pLists.free; current; current = current->next) {
-            ++size;
-        }
-        */
+        //for (struct proc* current = ptable.pLists.free; current; current = current->next) {++size;}
         cprintf("\nFree List Size: %d processes\n", size);
     }
     else {

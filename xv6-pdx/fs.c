@@ -186,6 +186,11 @@ ialloc(uint dev, short type)
     if(dip->type == 0){  // a free inode
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
+#ifdef CS333_P5
+      dip->uid = DEFAULT_UID;
+      dip->gid = DEFAULT_GID;
+      dip->mode.asInt = DEFAULT_MODE;
+#endif
       log_write(bp);   // mark it allocated on the disk
       brelse(bp);
       return iget(dev, inum);
@@ -208,6 +213,11 @@ iupdate(struct inode *ip)
   dip->major = ip->major;
   dip->minor = ip->minor;
   dip->nlink = ip->nlink;
+#ifdef CS333_P5
+  dip->uid = ip->uid;
+  dip->gid = ip->gid;
+  dip->mode.asInt = ip->mode.asInt;
+#endif
   dip->size = ip->size;
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
   log_write(bp);
@@ -285,6 +295,11 @@ ilock(struct inode *ip)
     ip->major = dip->major;
     ip->minor = dip->minor;
     ip->nlink = dip->nlink;
+#ifdef CS333_P5
+    ip->uid = dip->uid;
+    ip->gid = dip->gid;
+    (ip->mode.asInt) = (dip->mode.asInt);
+#endif
     ip->size = dip->size;
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
     brelse(bp);
@@ -427,6 +442,11 @@ stati(struct inode *ip, struct stat *st)
   st->type = ip->type;
   st->nlink = ip->nlink;
   st->size = ip->size;
+#ifdef CS333_P5
+  st->uid = ip->uid;
+  st->gid = ip->gid;
+  (st->mode.asInt) = (ip->mode.asInt);
+#endif
 }
 
 //PAGEBREAK!
@@ -649,3 +669,60 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
+#ifdef CS333_P5
+// user-side implementations for sysfile.c system calls
+
+// Change mode (Permissions)
+int
+chmod(char *pathname, int mode) {
+    struct inode *ip; // Get this pointed at the right inode
+    begin_op(); // Wrap in a transaction
+    if ((ip = namei(pathname)) == 0) {
+        end_op();
+        return -1;
+    } // Valid inode ptr
+    ilock(ip); // Lock the inode
+    (ip->mode.asInt) = mode; // Update mode (bounds checked in sys_chmod)
+    iupdate(ip); // Update inode
+    iunlockput(ip); // Make sure changes persist
+    end_op(); // end transaction
+    return 0;
+}
+
+// Change owner (UID)
+// Same workings as chmod()
+int
+chown(char *pathname, int owner) {
+    struct inode *ip;
+    begin_op();
+    if ((ip = namei(pathname)) == 0) {
+        end_op();
+        return -1;
+    }
+    ilock(ip);
+    ip->uid = owner;
+    iupdate(ip);
+    iunlockput(ip);
+    end_op();
+    return 0;
+}
+
+// Change group (GID)
+// Same workings as chmod()
+int
+chgrp(char *pathname, int group) {
+    struct inode *ip;
+    begin_op();
+    if ((ip = namei(pathname)) == 0) {
+        end_op();
+        return -1;
+    }
+    ilock(ip);
+    ip->gid = group;
+    iupdate(ip);
+    iunlockput(ip);
+    end_op();
+    return 0;
+}
+#endif

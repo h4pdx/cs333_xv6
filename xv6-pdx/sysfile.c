@@ -440,3 +440,62 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+
+#ifdef CS333_P5
+
+// Kernel-side implementation of chmod()
+int
+sys_chmod(void) {
+    char *path; // Pathname of file/dir
+    int mode; // Updated mode argument
+    // Grab path & mode from the stack
+    if(argstr(0, &path) < 0) {
+        return -1; // Bad path
+    }
+    if (argint(1, &mode) < 0) {
+        return -2; // Bad Mode
+    }
+    // Bounds checking for mode
+    if (mode < 0 || mode > 1023) {
+        return -2;
+    }
+    return chmod(path, mode);
+}
+
+int
+sys_chown(void) {
+    char *path;
+    int owner;
+    // Pull args off the stack
+    if (argstr(0, &path) < 0) {
+        return -1; // Bad path
+    }
+    if (argint(1, &owner) < 0) {
+        return -2; // Bad UID
+    }
+    // Bounds checking for UID
+    if (owner < 0 || owner > 32767) {
+        return -2; // Bad UID
+    }
+    return chown(path, owner);
+}
+
+int
+sys_chgrp(void) {
+    char *path;
+    int group;
+    // Pull args off the stack
+    if (argstr(0, &path) < 0) {
+        return -1; // Bad Path
+    }
+    if (argint(1, &group) < 0) {
+        return -2; // Bad GID
+    }
+    // Bounds checking for GID
+    if (group < 0 || group > 32767) {
+        return -2;
+    }
+    return chgrp(path, group);
+}
+#endif

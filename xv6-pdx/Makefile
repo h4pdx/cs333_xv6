@@ -1,6 +1,6 @@
 # Set flag to correct CS333 project number: 1, 2, ...
 # 0 == original xv6-pdx distribution functionality
-CS333_PROJECT ?= 4
+CS333_PROJECT ?= 5
 CS333_CFLAGS = 
 CS333_UPROGS =
 CS333_TPROGS =
@@ -33,7 +33,7 @@ CS333_CFLAGS += -DUSE_BUILTINS -DCS333_P1 -DCS333_P2 \
 # if P3 and P4 functionality not desired
 # CS333_CFLAGS += -DCS333_P1 -DUSE_BUILTINS -DCS333_P2 -DCS333_P5
 CS333_UPROGS += _date _time _ps _chgrp  _chmod _chown
-CS333_TPROGS += # _p5-test _testsetuid
+CS333_TPROGS +=  _p5-test _testsetuid
 CS333_MKFSFLAGS += -DCS333_P2 -DCS333_P5
 endif
 

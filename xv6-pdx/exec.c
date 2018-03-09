@@ -6,6 +6,9 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#ifdef CS333_P5
+#include "stat.h"
+#endif
 
 int
 exec(char *path, char **argv)
@@ -18,6 +21,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
 
+
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();
@@ -25,6 +29,26 @@ exec(char *path, char **argv)
   }
   ilock(ip);
   pgdir = 0;
+
+#ifdef CS333_P5
+  // Check permissions before executing program
+  struct stat st;
+  stati(ip, &st); // Copy relevant information
+  if ((st.uid == proc->uid) && (st.mode.flags.u_x)) {
+      goto good; // User permisson is good, execute
+  }
+  else if ((st.gid == proc->gid) && (st.mode.flags.g_x)) {
+      goto good; // Group permission is good, execute
+  }
+  else if (st.mode.flags.o_x) {
+      goto good; // Other permission is good, execute
+  }
+  else {
+      goto bad; // No permissions, exec fails
+  }
+// If we have permissions, continue with exec
+good:
+#endif
 
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) < sizeof(elf))
@@ -92,6 +116,12 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
+#ifdef CS333_P5
+  // change process's UID if flag is on
+  if (st.mode.flags.setuid) {
+      proc->uid = st.uid;
+  }
+#endif
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;
