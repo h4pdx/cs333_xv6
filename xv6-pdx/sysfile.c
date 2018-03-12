@@ -443,7 +443,6 @@ sys_pipe(void)
 
 
 #ifdef CS333_P5
-
 // Kernel-side implementation of chmod()
 int
 sys_chmod(void) {
@@ -460,6 +459,7 @@ sys_chmod(void) {
     if (mode < 0 || mode > 1023) {
         return -2;
     }
+    // Clear to run user-side
     return chmod(path, mode);
 }
 
@@ -478,6 +478,7 @@ sys_chown(void) {
     if (owner < 0 || owner > 32767) {
         return -2; // Bad UID
     }
+    // Clear to run user-side
     return chown(path, owner);
 }
 
@@ -496,6 +497,7 @@ sys_chgrp(void) {
     if (group < 0 || group > 32767) {
         return -2;
     }
+    // Clear to run user-side
     return chgrp(path, group);
 }
 #endif

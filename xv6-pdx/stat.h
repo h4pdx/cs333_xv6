@@ -19,8 +19,8 @@ union stat_mode_t {
     } flags;
     uint asInt;
 };
-
 #endif
+
 struct stat {
   short type;  // Type of file
   int dev;     // File system's disk device

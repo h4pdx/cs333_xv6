@@ -16116,8 +16116,8 @@ sys_pipe(void)
 
 80107f07 <sys_chmod>:
 
-#ifdef CS333_P5
 
+#ifdef CS333_P5
 // Kernel-side implementation of chmod()
 int
 sys_chmod(void) {
@@ -16165,6 +16165,7 @@ sys_chmod(void) {
 80107f56:	b8 fe ff ff ff       	mov    $0xfffffffe,%eax
 80107f5b:	eb 13                	jmp    80107f70 <sys_chmod+0x69>
     }
+    // Clear to run user-side
     return chmod(path, mode);
 80107f5d:	8b 55 f0             	mov    -0x10(%ebp),%edx
 80107f60:	8b 45 f4             	mov    -0xc(%ebp),%eax
@@ -16225,6 +16226,7 @@ sys_chown(void) {
 80107fc1:	b8 fe ff ff ff       	mov    $0xfffffffe,%eax
 80107fc6:	eb 13                	jmp    80107fdb <sys_chown+0x69>
     }
+    // Clear to run user-side
     return chown(path, owner);
 80107fc8:	8b 55 f0             	mov    -0x10(%ebp),%edx
 80107fcb:	8b 45 f4             	mov    -0xc(%ebp),%eax
@@ -16285,6 +16287,7 @@ sys_chgrp(void) {
 8010802c:	b8 fe ff ff ff       	mov    $0xfffffffe,%eax
 80108031:	eb 13                	jmp    80108046 <sys_chgrp+0x69>
     }
+    // Clear to run user-side
     return chgrp(path, group);
 80108033:	8b 55 f0             	mov    -0x10(%ebp),%edx
 80108036:	8b 45 f4             	mov    -0xc(%ebp),%eax

@@ -58,7 +58,6 @@ int             writei(struct inode*, char*, uint, uint);
 int             chmod(char *pathname, int mode);
 int             chown(char *pathname, int owner);
 int             chgrp(char *pathname, int group);
-int             stat(char *n, struct stat *st);
 #endif
 
 // ide.c

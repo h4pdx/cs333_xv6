@@ -21,7 +21,7 @@
 8010e5e0 panicked
 8010e600 cons
 80100317 printint
-8010c004 digits.1675
+8010c004 digits.1672
 80100792 consputc
 8010c000 crt
 80100601 cgaputc
@@ -58,14 +58,14 @@
 8010c220 normalmap
 8010c320 shiftmap
 8010c420 ctlmap
-8010e67c shift.1473
-8010c520 charcode.1474
+8010e67c shift.1470
+8010c520 charcode.1471
 00000000 lapic.c
 80103171 inb
 8010318e outb
 801031ad readeflags
 801031bd lapicw
-8010e680 n.1554
+8010e680 n.1551
 80103458 cmos_read
 80103488 fill_rtcdate
 00000000 log.c
@@ -110,7 +110,7 @@
 801059a5 wakeup1
 801066ce promoteAll
 801063df removeHead
-8010e020 first.1753
+8010e020 first.1750
 00000000 spinlock.c
 80106a73 readeflags
 80106a83 cli

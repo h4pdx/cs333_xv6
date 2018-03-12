@@ -14,9 +14,26 @@ main(int argc, char **argv) {
       printf(1, "Invalid arguments.\n"); // needs to have 2 arguments, along with implicit 1st (3 total)
       exit();
   }
-  int mode, rc;
+  int mode, rc, valid = 0;
   char *path;
-  mode = atoo(argv[1]); // convert octal int
+  if ((argv[1][0] == '0') || (argv[1][0] == '1')) {
+      if ((argv[1][1] >= '0') && (argv[1][1] <= '7')) {
+          if ((argv[1][2] >= '0') && (argv[1][2] <= '7')) {
+              if ((argv[1][3] >= '0') && (argv[1][3] <= '7')) {
+                  if (!argv[1][4]) {
+                      valid = 1; // number is at least 0000 and at most 1777
+                  }
+              }
+          }
+      }
+  }
+  // check validity of argument (could have been 888888)
+  if (valid) {
+      mode = atoo(argv[1]); // convert octal int
+  } else {
+      printf(1, "Invalid mode.\n"); // needs to have 2 arguments, along with implicit 1st (3 total)
+      exit();
+  }
   path = argv[2];
   rc = chmod(path, mode); // order is reversed for user cmd - system call
   if (rc < 0) {

@@ -46,6 +46,7 @@ exec(char *path, char **argv)
   else {
       goto bad; // No permissions, exec fails
   }
+
 // If we have permissions, continue with exec
 good:
 #endif
