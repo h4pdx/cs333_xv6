@@ -1,2 +1,8 @@
-# cs333_xv6
-xv6 operating system. term long projects
+# CS333 - xv6
+Portland State Univeristy
+
+CS 333 - Intro to Operating Systems - Prof. Mark Morrissey:
+http://web.cecs.pdx.edu/~markem/CS333/
+
+xv6:
+https://pdos.csail.mit.edu/6.828/2012/xv6.html
