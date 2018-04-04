@@ -1,5 +1,9 @@
+# Prerequisites
 *.d
-*.o
-*.sym
-*.asm
 
+# Object files
+*.o
+
+# Kernel files
+*.asm
+*.sym
