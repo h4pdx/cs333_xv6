@@ -1,0 +1,496 @@
+\documentclass[11pt,letterpaper]{report}
+\usepackage[margin=0.75in]{geometry}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{color}
+%\setlength{\parindent}{0pt}
+\graphicspath{{./images/}{IR}}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead{}
+\lhead{CS333}
+\chead{Project 4 Report}
+\rhead{Ryan Hoover}
+\author{Ryan Hoover}
+\title{Project 4 Report\\CS333 - Intro to Operating Systems\\Winter 2018}
+\date{2/25/18}
+
+\begin{document}
+	\maketitle{}
+	\section{Description}
+	The previous assignment, Project 3, had us rewrite the old {\tt scheduler} routine to use the ready list when searching for a {\tt RUNNABLE} process instead of iterating through the process array. The rewritten scheduler is still functionally equivalent to the old one: both are simple, round-robin schedulers. In this project, a new scheduler is implemented for xv6.
+	
+	\subsection{MLFQ, New State Lists \& Priority}
+
+	A variation of a Multi-Level Feedback Queue has been implemented, that uses a slightly different approach than the text for preventing process starvation. Our approach utilizes "demotion" based on a \emph{budget}, and "periodic promotion" (starvation prevention), which is the primary difference between the approach of the book and our implementation.
+	
+	Each process will have an associated priority that will dictate the ready list to which it belongs when in the {\tt RUNNABLE} state. Upon allocation, each process will have the same initial (default) priority value, the highest priority. The process priority value may be changed during process execution via a new system call ({\tt setpriority}). 
+	
+	\subsection{New Process Budget, Promotion \& Demotion}
+	
+	This implementation of an MLFQ will utilize a time \emph{budget} instead of basing the decision on the fraction of a time slice used. Each process is assigned its own budget. When a process is removed from the CPU via a context switch, the budget is updated according to a formula: \emph{budget = budget - (time\_out - time\_in)}. If the budget is less than or equal to {\tt 0}, then the process will be demoted and placed at the tail of the next lower queue and the budget value is reset. If the budget is not expired, the process will be placed at the tail of the appropriate queue when it again reaches the {\tt RUNNABLE} state. Periodically a promotion timer will expire. The expiration of this timer will cause each process to be promoted one level. Promoted processes are placed at the tail of the new queue. The promoted process's budget will be kept the same.
+%%%% ATTENTION
+	% Will need to decide later what I really want to do with the budget
+	
+	\subsection{Modified "ps" and Control Commands}
+	
+	The {\tt ps} and {\tt control-P} commands will now report the priority levels of each process alongside the rest of the information these commands already cover.\\
+	The {\tt control-R} command will now will print data for each of the {\tt ready} lists, in order from {\tt 0} to {\tt MAX}. The {\tt PID} (Process ID) and available \emph{budget} of each process will be displayed in order on each list.
+	
+	\newpage
+	\section{Deliverables}
+	This section will provide descriptions and details of all features added to xv6 for this project.
+	
+	\subsection{New Ready Lists, MAX, Priority}
+	%How do they relate?\\
+	The ready list for {\tt RUNNABLE} processes will need to be updated to support multiple priority queues. The amount of queues will be determined by a new constant, {\tt MAX}. The number of each queue will determine what \emph{priority} it represents, with {\tt 0} being the highest priority.
+	
+	\subsubsection{New Ready Lists}
+	Changes to the declaration of the {\tt ready} list in {\tt struct StateLists}:
+	\begin{verbatim}
+	struct proc* ready[MAX+1];
+	\end{verbatim}
+	The {\tt ready} list from Project 3 is now implemented as an array of lists, where each index of the {\tt ready} list corresponds to a priority queue in the MLFQ. The invariant for the ready list will change as well: the ready list contains all of the {\tt RUNNABLE} processes of the system with each process in {\tt pLists.ready[\emph{i}]} having a priority of \emph{i} ({\tt 0 <= \emph{i} <= MAX}).
+	
+	\subsubsection{MAX}
+	We should not assume a fixed value for the number of priority queues. Instead, we will use a {\tt \#define} that is visible in both user and kernel mode. The scheduling algorithm is flexible enough to adapt to wide variations in the number of queues.
+	
+	\subsubsection{Priority}
+	\indent
+	Each process will have an associated priority (as a {\tt uint}) in the range of {\tt [0...MAX]} that will dictate the ready list to which it belongs when in the {\tt RUNNABLE} state. This means that there are {\tt MAX + 1} possible priorities for each process. Upon allocation, each process will have the same initial (default) priority value, the highest priority. The process priority value may be changed during process execution via the {\tt setpriority} system call. The highest priority in the system will be {\tt 0} with each value greater than zero being a successively lower priority, the lowest being {\tt MAX}.
+	
+	\subsection{New "setpriority" System Call}
+	The function prototype is:
+	\begin{verbatim}
+		int setpriority(int pid, int priority);
+	\end{verbatim}
+	
+	The {\tt priority} argument value ranges from {\tt [0...MAX]}. The system call will have the effect of setting the priority for an \emph{active} process with PID {\tt pid} to the value of the {\tt priority} argument and resetting the \emph{budget} of the default value. An error is returned if the values for {\tt pid} or {\tt value} are not correct. The system call enforces bounds checking on the priority value. 
+	
+	\subsection{Process Promotion}
+	To address the problem of \textbf{starvation}, we implemented a promotion strategy. The strategy is to periodically increase the priority of all active processes by one priority level; that is, the priority of all processes in the {\tt RUNNABLE}, {\tt SLEEPING}, and {\tt RUNNING} states will be periodically adjusted.
+	The following approach will be used:
+	\begin{enumerate}
+		\item Added a new field to the {\tt ptable} structure, {\tt uint promoteAtTime}. The value stored will be the \emph{ticks} value at which promotion will occur. This value is the same for all processes, so it is set in the {\tt ptable} structure, \emph{not} each process.
+		
+		\item Created a constant {\tt \#define} {\tt TICKS\_TO\_PROMOTE XXX}, where {\tt XXX} is the maximum number of ticks that the scheduler runs before all the priorities are adjusted. Each time that the routine {\tt scheduler()} runs, the value is checked to see if it is time to adjust priorities.
+		
+		\item When the value of {\tt ticks} reaches {\tt promoteAtTime},
+		\begin{enumerate}
+			\item Adjust the priority value for all relevant processes to the next higher priority.
+			\item Change the priority queue for a process as appropriate, putting any adjusted process on the back of their new queue(s). Processes for which the priority was not adjusted are not moved, to avoid starvation.
+			\item Value of {\tt promoteAtTicks} will be set to {\tt ticks + TICKS\_TO\_PROMOTE}, to calculate when the next adjustment will be.
+		\end{enumerate} 
+	\end{enumerate}
+	
+	\subsection{Process Demotion}
+	Process demotion will be handled in accordance with the familiar MLFQ algorithm. When a process is removed from the CPU via a context switch, the budget is updated according to a formula:
+	\begin{verbatim}
+	budget = budget - (time_out - time_in)
+	\end{verbatim}
+	If \emph{budget} is less than or equal to {\tt 0}, then the process will be \emph{demoted} and placed at the tail of the next lower queue and thr {\tt budget} value is reset. If the \emph{budget} is not expired, the process will be placed at the tail of the appropriate queue when it again reaches the {\tt RUNNABLE} state.
+	
+	\subsection{Updated "ps" Command, "ctrl-P" \& "ctrl-R"}
+	The following commands are updated in Project 4:
+	\begin{itemize}
+		\item {\tt ps} Command. The {\tt ps} command now reports the priority level of each process. The {\tt uproc} structure has been updated with a new {\tt priority} field, to be copied from an active process's {\tt priority} field.
+		\item {\tt control-P} Console Command. The priority level of each active process will be displayed, read from a particular process's {\tt priority} field.
+		\item {\tt control-R} Console Command. The ready list will now display the contents of each ready list, corresponding to different queues. The contents of each item in these lists will be altered to not only show the PID of each process, but the \emph{budget} of each process as well.
+	\end{itemize}
+	
+	\subsection{How MLFQ Affects Scheduling Decisions}
+	Our MLFQ algorithm utilizes a time budget instead of basing our decision on the fraction of a time slice used. Each time the MLFQ algorithm runs, the process at the front of the highest priority queue will be selected to run. Each time the algorithm looks for a new process, it must start by checking the highest priority queue and only checking a lower queue if no higher priority jobs are available.
+	The approach:
+	\begin{enumerate}
+		\item Each process is assigned its own budget.
+		\item Each priority level has an associated FIFO queue, each of which is serviced in a round robin fashion.
+		\item A newly created process is inserted at the end of the highest priority queue and is assigned to a CPU. The system already records the time at which the process entered the CPU in the process structure.
+		\item At some stage the process reaches the head of the queue and is assigned to a CPU. The system already records the time at which the process entered the CPU in the process structure.
+		\item If the process exits before the time slice expires, it leaves the system.
+		\item When a process is removed from the CPU via a context switch, the budget is updated. If the budget value is <= 0, then the process is demoted and placed at the tail of the next lower queue and budget value is reset. If the budget is not expired, the process will be placed at the tail of the appropriate queue when it again reaches the {\tt RUNNABLE} state.
+		\item Periodically, a promotion timer will expire, The expiration of this timer will cause each process to be promoted one level. Promoted processes are placed at the tail of the new queue.
+	\end{enumerate}
+	
+	The MLFQ tries to address a fundamental problem. First, it optimizes \emph{turnaround time} by running shorter jobs first. Second, MLFQ makes a system responsive to interactive users and minimizes \emph{response time}. The scheduler will "learn" that a process is interactive by the way promotions and demotions are handled, and what {\tt ready} list the process tends to reside on, based on its behavior.
+	
+	% ----------------------------------------------------------------------------------------------------
+	\newpage
+	\section{Implementation}
+	This section identifies all files and line numbers modified for the implementation of Project 4.
+	
+	\subsection{Priority Queues}
+	\begin{itemize}
+		\item \emph{New ready lists in {\tt ptable}; New {\tt MAX} define; Initialization of {\tt ready} lists.}
+		\begin{itemize}
+			\item {\tt proc.c} ({\color{red} Line 15}). The {\tt ready} list from Project 3 is modified to be an array of lists, set to size [{\tt MAX + 1}]. 
+			\item {\tt param.h} ({\color{red} Line 19}). {\tt MAX} is defined here, set to any size we want. The ready lists and all of the associated functionality scale alongside this constant.
+			\item {\tt proc.c} ({\color{red} Lines 281 -- 285}). Here int {\tt userinit()}, the ready lists are initialized. The highest priority list (index 0) is assigned to the newly allocated {\tt RUNNABLE} process, that process's {\tt next} pointer set to {\tt NULL} (0), and the rest of the lists (if {\tt MAX > 0}) are initialized to {\tt NULL} (0).
+		\end{itemize}
+		
+		\item \emph{New {\tt priority} field in {\tt proc} structure \& initialization of priority.}
+		\begin{itemize}
+			\item {\tt proc.h} ({\color{red} Line 83}). A process's priority is defined here as a {\tt uint} (won't be below 0).
+			\item {\tt proc.c} ({\color{red} Line 187}). In {\tt userinit}, the process's priority is set to the highest, {\tt 0}.
+		\end{itemize}
+		
+		\item \emph{Changes to {\tt proc.c} functions to properly place processes on the correct ready list.}\\
+		In {\tt proc.c}:
+		\begin{itemize}
+			\item {\tt userinit()} ({\color{red} Line 187}). The first process in the system is assigned to priority 0.
+			\item {\tt fork()} ({\color{red} Line 418}). The process is added to a ready list at index {\tt [p->priority]}; could also be 0, since every new process is created here (after the one in {\tt userinit()}). 
+			\item {\tt yield()} ({\color{red} Line 872}). The process is added to a {\tt ready} list at the index corresponding to its priority ({\tt [p->priority]}), which can be anything at the time of its removal from the {\tt running} list. A demotion can take place after the removal from the {\tt running} list, and before adding to a {\tt ready} list.
+			\item {\tt wakeup1()} ({\color{red} Line 994}). The process is removed from the {\tt sleep} list, and added to the {\tt ready} list corresponding to its priority.
+			\item {\tt kill()} ({\color{red} Line 1052}). If a {\tt SLEEPING} process is woken, it is made {\tt RUNNABLE} and added to the ready list at {\tt [p->priority]}. 
+		\end{itemize}
+		
+		\item \emph{Any modifications to helper functions or how to assert processes were on the correct priority queue on removal.}\\
+		Helper functions were not modified from their implementation in Project 3. The dereferencing that occurs when using the [] brackets to specify an index of an array allows the array of ready lists to be used with the existing list manipulation helper functions. These functions take a double pointer ({\tt struct proc** sList}) as an argument, and the newly created array of ready lists make {\tt ptable.pLists.ready} a \emph{triple} pointer. Adding or removing a process from a {\tt ready} list simply involved changing the lines that added or removed a process from the {\tt ready} list, to add or remove from a specific index of the {\tt ready} list array, at whatever index corresponds to the process's current {\tt priority} value.\\
+		The line would look something like this, depending on the exact function name:\\
+		{\tt addToStateListEnd(\&ptable.pLists.ready[p->priority], p);}\\		
+	\end{itemize}
+	
+	
+	\subsection{MLFQ Scheduler}
+	\emph{Modifications to the scheduler so that it will potentially go through all {\tt ready} lists and pull the first process from the highest priority queue.}\\
+	In {\tt proc.c}. The scheduler algorithm was not modified very much from Project 3. In ({\color{red} Line 761}), the scheduler accesses the {\tt ready} list array starting at index 0, and checks to see if the current index it is valid ({\color{red} Line 763}). The first availible index will be chosen, and will not stop until the loop index has reached size {\tt MAX} (not +1, because this is the actual index of the {\tt ready} list array). If so, the process is removed from its {\tt ready} list at whatever priority it is ({\color{red} Line 767}) and added to the running list as usual ({\color{red} Line 777}). A new variable, {\tt ran}, is set from 0 to 1, to indicate that for this round, a process has been scheduled ({\color{red} Line 786}). This is used as a loop condition for the {\tt ready} list array traversal (so only one process is run each round), and reset in the scheduler's infinite outer loop to 0 ({\color{red} Line 752}), so that it can search for a new process.
+	
+	
+	\subsection{Promotion}
+	\begin{itemize}
+		\item \emph{New {\tt promoteAtTime} field in {\tt ptable}, {\tt TIME\_TO\_PROMOTE} define and {\tt promoteAtTime}'s initialization.}\\
+		\begin{itemize}
+			\item {\tt proc.c} ({\color{red} Line 37}). Field {\tt promoteAtTime} added to {\tt struct ptable}.
+			\item {\tt param.h} ({\color{red} Line 18}). Constant {\tt TIME\_TO\_PROMOTE} can be set to any value before compiling, this will power our promotion timer.
+			\item  {\tt proc.c} ({\color{red} Line 235}). In {\tt userinit()}, {\tt promoteAtTime} is initialized to the value of {\tt TIME\_TO\_PROMOTE}:\\
+			{\tt ptable.promoteAtTime = TIME\_TO\_PROMOTE;}.
+		\end{itemize}
+		
+		\item \emph{How the scheduler determines it is time to promote.}\\
+		In {\tt proc.c} ({\color{red} Lines 756 -- 759}), after acquiring the {\tt ptable} lock, the scheduler checks if the value {\tt ptable.promoteAtTime} is equal to the global variable {\tt ticks}. If so, the new {\tt promoteAll()} function is run, increasing the priority of every process on the {\tt running}, {\tt sleeping}, and every index of the {\tt ready} list array. The {\tt promoteAtTime} field is then updated to incorporate the \emph{current} number of {\tt ticks} with {\tt TIME\_TO\_PROMOTE}, setting a future time when the system will determine it is next time to promote:\\
+		{\tt ptable.promoteAtTime = (ticks + TIME\_TO\_PROMOTE);}
+		
+		\item \emph{Which processes are promoted and how the budget of each process is handled during promotion.}\\
+		A new function was added to handle promoting all of the active ({\tt RUNNING}, {\tt RUNNABLE}, and {\tt SLEEPING}) processes: {\tt static void promoteAll(void);} ({\color{red} Lines 1470 -- 1516}).\\
+		This function traverses the {\tt ready} list array, traverses each item in each list, and decrements the {\tt priority} value of each process if it is greater than 0. While updating the {\tt ready} lists, a process must be removed from the {\tt ready} list at the index corresponding to its old priority, then priority is updated, then the process is moved to the new ready list ({\color{red} Lines 1474 -- 1494}). The {\tt running} and {\tt sleep} lists are traversed also, and their priorities adjusted if greater than 0 ({\color{red} Lines 1496 -- 1514}). The budgets are kept the same. 
+		
+		\item \emph{How promotion avoids starvation.}\\
+		The promotion algorithm avoids starvation by setting {\tt TIME\_TO\_PROMOTE} to a reasonable value. The text has referred to this as a "black magic number", or one that needs some kind of magic to determine the correct value. It can't be too high, or processes are never promoted in time, and it can't be too low or processes will only live on the higher priority {\tt ready} lists, defeating the purpose of MLFQ.
+	\end{itemize}
+	\newpage
+	
+	\subsection{Demotion}
+	\begin{itemize}
+		\item \emph{New {\tt budget} field in {\tt proc} structure and initialization.}
+		\begin{itemize}
+			\item {\tt proc.h} ({\color{red} Line 84}). {\tt int budget;} declared to store whatever budget value is given.
+			\item {\tt proc.c} ({\color{red} Line 186}). In {\tt allocproc}, the budget field is set to the constant {\tt BUDGET}, set in {\tt param.h}.
+			\item {\tt param.h} ({\color{red} Line 20}). A constant is defined, set to whatever value we want. Like {\tt TIME\_TO\_PROMOTE}, this is another "black magic number".
+		\end{itemize}
+	
+		\item \emph{When demotion occurs and how it affects priority and the budget.}\\
+		Demotion occurs in two places within {\tt proc.c}, where a process would exit the CPU:
+		\begin{itemize}
+			\item {\tt sleep()} ({\color{red} Lines 936 -- 943}). Upon exiting the CPU, the process budget is updated according to a formula:\\
+			{\tt proc->budget -= (ticks - proc->cpu\_ticks\_in);}
+			The budget subtracts and assigns the value of the time it spent in the CPU subtracted from the total {\tt ticks} the system has been running. The budget is then checked if it is less than or equal to 0, and if so the process's {\tt priority} value is incremented (demotion to lesser priority list), but only if the priority is already less than the largest {\tt ready} list array index value. Regardless of whether or not the demotion occurs, the process's budget is reset to the constant value.
+			
+			\item {\tt yield()} ({\color{red} Lines 864 -- 870}). This function performs the exact set of steps described above. The demotion is performed before adding the process to a {\tt ready} list, so that it will join the correct list depending on its updated priority.
+		\end{itemize}
+		
+	\end{itemize}
+	
+	
+	\subsection{{\tt setpriority} System Call}
+	\begin{itemize}
+		\item \emph{All files updated to add the system call, and implementation in {\tt proc.c}.}
+		\begin{itemize}
+			\item {\tt proc.c} ({\color{red} Lines 1520 -- 1569}).
+			\item {\tt sysproc.c} ({\color{red} Lines 177 -- 197}).
+			\item {\tt setpriority.c} Entire file added.
+			\item {\tt Makefile} ({\color{red} Line 26}). Added {\tt \_setpriority} label.
+			\item {\tt runoff.list} ({\color{red} Line 99}).
+		\end{itemize}
+		
+		\item \emph{Finding the process, changing priority and budget.}\\
+		{\tt proc.c}. Similar to {\tt promoteAll()}, the user-side function in {\tt proc.c} traverses the {\tt ready} list array and the list at each index, looking to match the {\tt pid} argument to a process PID ({\color{red} Line 1528}). It will look in the {\tt sleep} and {\tt running} lists if no match is found in a previous list ({\color{red} Lines 1546 \& 1557}). Once found, the process priority is set to the argument, and the budget reset.
+		
+		\item \emph{Changing the state list when appropriate.}\\
+		{\tt proc.c}. If found on a {\tt ready} list, the process is removed from one list, its priority set to the {\tt priority} argument value, and its budget reset {\color{red} Lines 1528 -- 1536}). 
+		
+		\item \emph{Bounds checking on user input and error conditions.}\\
+		{\tt sysproc.c} The kernel-side function does the bounds checking, and returns {\tt -1} for any errors. First, it checks to see if the {\tt pid} argument is between {\tt 0} and {\tt 32767} to avoid an overflow ({\color{red} Line 189}). The {\tt priority} argument is checked to see if it is between 0 and {\tt MAX}, to denote a valid priority to be set ({\color{red} Line 193}).
+		
+	\end{itemize}
+
+
+	\subsection{Updated Commands}
+	\begin{itemize}
+		\item \emph{Modifications to {\tt control-P} to include priority and {\tt control-R} to display each processes budget.}\\
+		In {\tt proc.c}:
+		\begin{itemize}
+			\item ({\color{red} Lines 1364 -- 1388}). {\tt ctrl-R} calls the {\tt printReadyList()} function, which was updated in two ways. It now traverses and displays all of the {\tt ready} lists, and displays the budget of each process in addition to the PID.
+			
+			\item ({\color{red} Lines 1182 -- 1214}). {\tt ctrl-P} calls {\tt procdump()}, which was rewritten and cleaned up, separated from the Project 2 and earlier version. This now displays the process's {\tt priority} value alongside the rest of the process info.
+		\end{itemize}
+		
+		\item \emph{Modifications to {{\tt ps} command to display priority, and new {\tt priority} field in {\tt struct uproc}.}}
+		\begin{itemize}
+			\item {\tt ps.c} ({\color{red} Line 58}). The table now prints a given process's {\tt priority} value.
+			\item {\tt uproc.h} ({\color{red} Line 16}). Added a field for process {\tt priority}.
+		\end{itemize}
+	
+	\end{itemize}
+	
+	\subsection{New Test Programs}
+	These programs were added to test new functionality:
+	\begin{itemize}
+		\item {\tt p4test.c}. Bad edits to {zFree.c}.
+		\item {\tt p4test2.c}. The "countForever" program provided by Professor Morrissey.
+		\item {\tt tPrio.c}. Tests setting priority.
+		\item {\tt tspin.c}. Forks and endless loops.
+	\end{itemize}
+		
+		 
+
+	
+	
+	\newpage
+	\section{Testing}
+	
+	% Test 1
+	\subsection{Round Robin}
+	\emph{Demonstrate that round robin scheduling is still enforced by the MLFQ for a single priority level.}\\
+	
+	The screenshot in ({\color{red}Figure 1}) shows that round robin scheduling is enforced by tracking how the process PIDs cycle through the ready list. This was done while running {\tt p4test2} and repeatedly hitting {\tt ctrl-R}. {\tt MAX} was set to {\tt 0}, and the {\tt Priocount} of the test program was set to {\tt 1}.
+	
+% Figure 1
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p4_testscreens/test1}
+	\caption{Round robin enforced for a single priority level.}
+	\label{fig:test1}
+\end{figure}
+
+	\paragraph{Result:}Test 1 {\tt PASSES}.
+	
+	% Test 2
+	\subsection{Promotion}
+	\emph{Show that promotion properly changes the priority level for sleeping and running processes.}\\
+	
+	This test was performed by running the test program {\tt tspin} to simply fork a few processes, set the priority of each one to {\tt MAX} and spin forever. Also, the promotion timer is set to one second, and the budget time set to a high value so that demotion will not occur during the test, and hitting {\tt ctrl-P} during the test to watch the promotion occur (see {\color{red}Figure 2}). The sleeping processes are shown (see {\color{red}Figure 3}) to be similarly updated by the promotion.
+	
+% Figure 2
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p4_testscreens/test2_sleep}
+	\caption{This shows promotions changing the priority level of sleeping processes.}
+	\label{fig:test2sleep}
+\end{figure}
+	
+% Figure 3
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p4_testscreens/test2_run}
+	\caption{This shows promotion changing the priority level at a 1 second interval.}
+	\label{fig:test2run}
+\end{figure}
+
+	\paragraph{Result:}Test 2 {\tt PASSES}.
+	
+	% Test 3
+	\subsection{Demotion}
+	\emph{Show that demotion properly resets the budget of the demoted process.}\\
+	
+	This test was performed by first adjusting the define {\tt TIME\_TO\_PROMOTE} to an extremely high number, over 5 minutes, to ensure that no automatic promotions would take place during testing. The {\tt budget} define for each process was changed to {\tt 2} seconds ({\tt 2000 ticks}), so that we could have enough time to track the demotion and see the budget being reset (See {\color{red} Figure 4}).\\
+	This test was performed by running {\tt p4test2} and hitting {\tt ctrl-P} and {\tt ctrl-R} repeatedly to see the relevant info. The active process table shows that {\tt RUNNING} and {\tt SLEEPING} processes are being demoted as well as the {\tt RUNNABALE} processes on the {\tt ready} lists.
+	
+	% Figure 4
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p4_testscreens/test3}
+	\caption{The processes at the top have a low budget, and are dropped to the next lowest list. We can see their new budgets.}
+	\label{fig:test3}
+\end{figure}
+
+	\paragraph{Result:}Test 3 {\tt PASSES}.
+	
+	% Test 4
+	\subsection{For ({\tt MAX == 2})}
+	
+	\begin{enumerate}
+		\item \emph{Show that the Scheduler always selects the first process on the highest non-empty priority queue.}\\
+		{\color{red}Figure 2} shows that process 3 is always at priority 0, and consistently has a higher CPU time than the other processes. {\color{red}Figures 5 \& 6} also demonstrate the first process taken off of a ready list, no matter what level it is at.\\
+		This sub-test {\tt PASSES}.
+		
+		\item \emph{Show that promotion correctly moves the processes on the ready lists (except highest priority list) up to the next highest priority list, and maintains queue status.}\\
+		This test was performed by running {\tt tspin} to make some new processes that just run forever, and hitting {\tt ctrl-R} to track changes to the ready lists. The promotion timer was set to a second, and the budget was set too high to demote any processes during the test (see {\color{red} Figures 5 \& 6}).\\
+		This sub-test {\tt PASSES}.
+% Figure 5
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p4_testscreens/test4b}
+	\caption{We can follow PIDs to see when promotion occurs and the order of the queues}
+	\label{fig:test4b}
+\end{figure}
+
+% Figure 6	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p4_testscreens/test4b_2}
+	\caption{The queue remains in the same order upon promotion switching them to another list.}
+	\label{fig:test4b2}
+\end{figure}
+
+		\item \emph{Show that demotion correctly moves processes to the next lower priority list (if one exists) when the processes budget is used up.}\\
+		Test 3 was performed while {\tt MAX} was set to 2, and [{\color{red}Figure 4}] properly demonstrates how the process is demoted after its budget is used, and the budget is reset.\\
+		This sub-test {\tt PASSES}.
+	\end{enumerate}	
+	\paragraph{Result:}All sub-tests pass; Test 4 {\tt PASSES}.
+
+% Test 5
+	\subsection{For ({\tt MAX == 6})}
+	
+	\begin{enumerate}
+		\item \emph{Show that the scheduler always selects the first process on the highest non-empty priority queue.}\\
+		This test was done in mostly the same way as Test 4, just with the {\tt MAX} define set to 6, thus making 7 lists. The promotion timer was set to a low number, the budget timer to a high one to prevent demotion, and {\tt tspin} was ran. {\tt ctrl-R} is hit repeatedly to watch the scheduler select the first available process (see {\color{red} Figure 7}).\\
+		This sub-test {\tt PASSES}.
+% Figure 7
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\linewidth]{p4_testscreens/test5a}
+	\caption{The scheduler running the first available process, while priority is updated quickly}
+	\label{fig:test5a}
+\end{figure}
+		
+		\item \emph{Show that promotion correctly moves the processes on the ready lists (except highest priority list) up to the next highest priority list, and maintains queue status.}\\
+		This test was done exactly like Test4-2, by running {\tt tspin} to loop forever, and track the changes to the ready list as they are promoted by a quick timer (see {\color{red}Figure 8}).\\
+		This sub-test {\tt PASSES}.
+% Figure 8
+\begin{figure}
+	\centering
+	\includegraphics[width=0.3\linewidth]{p4_testscreens/test5b}
+	\caption{This shows queue status being maintained as promotion occurs, and proper ready lists.}
+	\label{fig:test5b}
+\end{figure}
+		
+		\item \emph{Show that demotion correctly moves processes to the next lower priority list (if one exists) when the processes budget is used up.}\\
+		Thus test was performed in almost an identical way to test 4-3, just with more ready lists. {\tt p4test2} was run to fork multiple processes and run them, with the promotion timer set extremely high and the budget set to {\tt 500 ticks} so we can watch demotion happen quickly (see {\color{red} Figure 9}).\\
+		This sub-test {\tt PASSES}.
+		% Figure 9
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\linewidth]{p4_testscreens/test5c}
+	\caption{Processes being demoted after budget runs out, budgets reset.}
+	\label{fig:test5c}
+\end{figure}
+	\end{enumerate}	
+	\paragraph{Result:}All sub-tests pass; Test 5 {\tt PASSES}.
+
+% Test 6
+	\subsection{For ({\tt MAX == 0})}
+
+	\begin{enumerate}
+		\item \emph{Show that the scheduler operates as a single round robin queue, as it did in Project 3.}\\
+		This test is nearly identical to Test 1. This test involved setting {\tt MAX} to 0, so there will be one ready list. I then hit {\tt ctrl-R} repeatedly to watch the processes move through the queue (see {\color{red} Figures 1 \& 10}).\\
+		This sub-test {\tt PASSES}.
+		% Figure 10
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test6a}
+			\caption{The processes are cycled through the single priority list, round-robin style.}
+			\label{fig:test6a}
+		\end{figure}
+		
+		\item \emph{Show that promotion and demotion do not change round robin queue.}
+		This test was performed by setting the promotion timer and the budget time to half-second values ({\tt 500 ticks}) so that they would execute quickly while we ran the test, and we could see that nothing changed, even though it can be seen that process budgets are being reset, so we know that promotions are also supposed to be occurring as well, every half-second (see {\color{red} Figure 11}).\\
+		This sub-test {\tt PASSES}.
+		% Figure 11
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test6b}
+			\caption{Round robin queue unchanged, with budget being reset, this is when demotion would occur.}
+			\label{fig:test6b}
+		\end{figure}
+	\end{enumerate}
+	\paragraph{Result:}All sub-tests pass; Test 6 {\tt PASSES}.
+
+	% Test 7
+	\subsection{The {\tt setpriority()} system call}
+	
+	\begin{enumerate}
+		\item \emph{Show that the priority is changed and budget reset when given a valid {\tt pid} and {\tt priority}.}\\
+		For this test, I ran {\tt tspin} in the background and used the {\tt setpriority} user command to set a process to a new priority, and watched the budget reset along with it. I gave the promotion timer define a value of 50 million and the budget a similar value, so that no automatic promotions or demotions would occur during the testing (see {\color{red} Figure 12}).\\
+		 % Figure 12
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test7ab}
+			\caption{Process 6 is given a new priority of 0, and its budget is reset as well.}
+			\label{fig:test7a}
+		\end{figure}
+		This sub-test {\tt PASSES}.
+		
+		\item \emph{Show that changing the priority of a process on a ready list, correctly moves the process to the list corresponding to the new priority.}\\
+		This test is demonstrated by also {\color{red} Figure 12}, process 6 is given a new priority of 0, and we can see in the picture that it existed on priority list 2 before the command, and was moved to list 0 afterwards.\\
+		This sub-test {\tt PASSES}.
+		
+		\item \emph{Show that setting the priority of a process on a ready list to the same priority it already has, does not change it's position in the queue.}\\
+		This test was performed by running {\tt tspin} in the background (with {\tt \&}) and watching the queues, and then setting a process to the same priority, and watching the queues again. We can see that the budget is reset, but the process remains in the same position in the queue it was before (see {\color{red} Figure 13}).\\
+		This sub-test {\tt PASSES}.
+		% Figure 13
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test7c}
+			\caption{Process 5 is given the same priority, and we can see its budget has been reset, while maintaining its place on the queue.}
+			\label{fig:test7c}
+		\end{figure}
+	
+		\item \emph{Show that calling {\tt setpriority} with an invalid {\tt pid} or {\tt priority}, returns a relevant error code.}\\
+		For this test, I ran {\tt tspin} in the background, and set the priority of a process to 100, which is well out of bounds. This returned an error message that the command had failed (see {\color{red} Figure 14}). I then repeated the same step for the PID field, which returned an error message that the command had failed (see {\color{red} Figure 15}).\\
+		This sub-test {\tt PASSES}.
+		% Figure 14
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test7d}
+			\caption{setpriority fails to set process 5 to a priority of 100, because 100 is well above {\tt MAX == 2}}
+			\label{fig:test7d}
+		\end{figure}
+		% Figure 15
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test7d_2}
+			\caption{setpriority fails to set process 100 to anything, because it doesn't exist.}
+			\label{fig:test7d2}
+		\end{figure}
+	\end{enumerate}
+	\paragraph{Result:}All sub-tests pass; Test 7 {\tt PASSES}.
+
+	\subsection{Updated Commands}
+	\begin{enumerate}
+		\item \emph{Show that {\tt ctrl-P} correctly displays the process priority.}\\
+		This test has been demonstrated across all of the tests, for proof any one of the provided figures up to this point can prove it works. I provided an extra image of {\tt ctrl-P}, {\tt ps}, and {\tt ctrl-R} being used back-to-back-to-back to show that they can be cross-referenced to show the correct information (see {\color{red} Figure 16}).\\
+		This sub-test {\tt PASSES}.
+		
+		\item \emph{Show that {\tt ps} correctly displays the process priority.}\\
+		This test is shown in {\color{red} Figure 16} to present the process priority information.\\
+		This sub-test {\tt PASSES}.
+		
+		\item \emph{Show that {\tt ctrl-R} correctly displays all the ready lists, and the budget for each process on the list.}\\
+		This test is also shown in almost all of the provided screenshots so far, and again for emphasis at the top of {\color{red} Figure 16}.\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 16
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.7\linewidth]{p4_testscreens/test8abc}
+			\caption{In order: {\tt ctrl-R}, {\tt ctrl-P}, and {\tt ps} command.}
+			\label{fig:test8abc}
+		\end{figure}
+	\end{enumerate}
+	\paragraph{Result:}All sub-tests pass; Test 8 {\tt PASSES}.
+	
+	\section*{All Tests PASS}
+	
+\end{document}

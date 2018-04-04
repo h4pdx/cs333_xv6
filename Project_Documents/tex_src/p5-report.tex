@@ -1,0 +1,559 @@
+\documentclass[11pt,letterpaper]{report}
+\usepackage[margin=0.75in]{geometry}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{color}
+\graphicspath{{./images/}{IR}}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead{}
+\lhead{CS333}
+\chead{Project 5 Report}
+\rhead{Ryan Hoover}
+\author{Ryan Hoover}
+\title{Project 5 Report\\CS333 - Intro to Operating Systems\\Winter 2018}
+\date{3/11/18}
+
+\begin{document}
+	\maketitle{}
+	% ----------------------------------------------------------------------------------------------------
+	\section{Description}
+	
+	% 1.1
+	\subsection{New File Permissions \& Modifications For {\tt  exec}}
+	
+	File permissions will be added to xv6 by implementing \emph{modes} for files/directories/devices. Mode will be interpreted as both a numeric value and a 12-bit binary vector, depending on the functionality. In mode, values at different bits correspond to users, groups, and other permissions.\\
+	The {\tt exec} system call will require two changes. First, the file should not be read unless the process has execute permission for the file. Second, when the new image is committed, if the file is {\tt setuid} then the new {\tt uid} will need to be set.
+	
+	% 1.2
+	\subsection{Updated {\tt ls} Command}
+	The {\tt ls} command has been modified to display the new {\tt uid}, {\tt gid}, and {\tt mode} fields.
+	\begin{itemize}
+		\item The first column in the {\tt ls} print will display the mode bits for the file/directory/device. The first character indicates if the item is a regular file ('-'), directory ('d'), or device file ('c'). If the file is {\tt setuid}, then the 'x' in the user permissions will be displayed as 'S'.
+		\item {\tt name}. The name column will continue to show the name of the file or directory.
+		\item {\tt uid}. The user identifier (owner) of the file or directory will be displayed.
+		\item {\tt gid}. The group identifier (owning group) of the file or directory will be displayed.
+		\item {\tt inode}. Inode number of the file or directory.
+		\item {\tt size}. Size in bytes of the file or directory.
+	\end{itemize}
+	
+	% 1.3
+	\subsection{New  Commands \& System Calls to Modify Permissions}
+	New System Calls:
+	\begin{itemize}
+		\item The {\tt chmod()} system call sets the mode, or permission, bits for the specified target.
+		\item The {\tt chown()} system call sets the user UID for the specified target.
+		\item The {\tt chgrp()} system call sets the group GID for the specified target.
+	\end{itemize}
+	New Commands:\\
+	Three new commands allow the user to set the UID, GID, or mode for a file or directory.
+	\begin{itemize}
+		\item {\tt chown}: sets the owner (UID) for a file or directory.
+		\item {\tt chgrp}: sets the group (GID) for a file or directory.
+		\item {\tt chmod}: sets the mode bits (permissions) for a file or directory.
+	\end{itemize}
+	
+	% ----------------------------------------------------------------------------------------------------
+	\newpage
+	\section{Deliverables}
+	The following section contains detailed descriptions of the features added to xv6 for Project 5.
+	% 2.1
+	\subsection{{\tt inode} / {\tt dnode} / {\tt stat}}
+	
+	\subsubsection{New File Permissions (user, group, \& other)}
+	The new \emph{user}, \emph{group}, and \emph{other} permission modes will determine the level of access a process will have in the system: read, write, and execute. Fields for User ID, Group ID, and Mode will be added to the {\tt inode} and {\tt dinode} structures. User and Group IDs of a file or directory will be checked against the calling process's UID and GID fields to determine permissions. Mode is a number meant to represent different values for permissions.
+	
+	\subsubsection{New {\tt mode\_t} and {\tt stat\_mode\_t} Unions \& Their Usage}
+	Permission modes will be represented as bits, and defined as a {\tt union}, called {\tt mode\_t}.
+	This {\tt union} will be added to the {\tt inode} and {\tt dinode} structures alongside {\tt uid} and {\tt gid}.
+	Another {\tt union} will be added to the {\tt stat} structure, the same format as {\tt mode\_t}, but renamed {\tt stat\_mode\_t}. This renaming is due to how the kernel handles {\tt \#include} files.\\
+	The mode bits for user/group/other will be interpreted as "read write execute" permissions (rwx). Bits 0-2 are the mode bits for "other"; bits 3-5 are for "group"; bits 6-8 are for "user"; bit 9 is the "setuid" indicator; and the remaining bits in the integer field are unused.
+	
+	\subsubsection{Persistence of New File Permissions}
+	The {\tt inode} and {\tt dinode} structures will maintain metadata about files stored to the disk. The {\tt mode} bits we added to these structures will contain information about the file permissions, thus ensuring that the permissions persist when the OS is booted and run again.
+	The xv6 file system uses a log to help maintain file system consistency. Operations to disk are very slow. As a result, all file system operations are logged before being committed to the disk. In this way, if the disk commit process is interrupted, the actions may be replayed from the log. This also means that there must be a way to ensure that the log is not corrupted. The xv6 file system uses a \emph{transactional} approach. All operations that result in a file system modification are wrapped in a transaction. 
+	
+	% 2.2
+	\subsection{{\tt chmod} / {\tt chown} / {\tt chgrp}}
+	
+	\subsubsection{New System Calls {\tt chmod}, {\tt chown},  \& {\tt chgrp}}
+	The prototypes for the three new system calls are as follows:
+	\begin{enumerate}
+		\item {\tt int chmod(char *pathname, int mode);}\\
+		The {\tt chmod()} system call sets the mode, or permission, bits for the target specified by {\tt pathname}. The return value is '0' on success and '-1' on failure.
+		
+		\item {\tt int chown(char *pathname, int owner);}\\
+		The {\tt chown()} system call sets the UID for the target specified by {\tt pathname}. The return value is '0' on success and '-1' on failure.
+		
+		\item {\tt int chgrp(char *pathname, int group);}\\
+		The {\tt chgrp()} system call sets the GID for the target specified by {\tt pathname}. The return value is '0' on success and '-1' on failure.
+	\end{enumerate}
+	
+	\subsubsection{New Commands {\tt chmod}, {\tt chown},  \& {\tt chgrp}}
+	Three new commands will allow the user to set the UID, GID, or mode for a file or directory, described as follows:
+	\begin{enumerate}
+		\item {\tt chown}: sets the owner (UID) for a file or directory.\\
+		Usage: {\tt chown OWNER TARGET}\\
+		where {\tt OWNER} is the numeric UID to set as the owner of {\tt TARGET} and {\tt TARGET} is the name of a file or directory.
+		
+		\item {\tt chgrp}: sets the group (GID)	for a file or directory.\\
+		Usage: {\tt chgrp GROUP TARGET}\\
+		where {\tt GROUP} is the numeric GID to set as the group of {\tt TARGET} and {\tt TARGET} is thr name of a file or directory.
+		
+		\item {\tt chmod}: sets the mode bits (permissions) for a file or directory.\\
+		Usage: {\tt chmod MODE TARGET}\\
+		where {\tt MODE} is a string of octal values specifying mode bits to set for {\tt TARGET} and {\tt TARGET} is the name of a file or directory.\\
+		The numeric {\tt MODE} is four octal digits (0 - 7), derived by adding up the bits with values 4, 2, and 1. No digit may be omitted, and any digit can be the value 0. The first digit selects the set UID (1) attribute. The second digit selects permissions for the user who owns the file: read (4), write (2), and execute (1). The third selects permissions for other users in the file's group. The fourth digit is for other users not in the file's group, with the same values. It is permissible for one of user / group / other to be 0, which indicates no access to the file, e.g. {\tt chmod 0000 TARGET} is valid.\\
+		Mode bits are evaluated in this order:
+		\begin{enumerate}
+			\item User: Check against the user permissions. If the UID of the invoking process and the UID of the file are the same, use these permissions.
+			
+			\item Group: Check against the group permission. If the GID of the invoking process and the GID of the file are the same, use these permissions
+			
+			\item Other: If neither the user or group permissions are used, apply these permissions.
+			
+			\item Setuid: If the permissions allow the invoking process to execute the file, set the UID of the process executing the file to be the same as the UID for the file. 
+		\end{enumerate}
+	
+	\end{enumerate}
+	
+	\subsubsection{Valid Integer Ranges}
+	The {\tt chmod}, {\tt chown}, and {\tt chgrp} user commands do not modify anything when passed in an invalid filename or numeric argument (mode digits for {\tt chmod}, UID for {\tt chown}, and GID for {\tt chgrp}).
+	
+	% 2.3
+	\subsection{{\tt ls} Command}
+	The {\tt ls} command must be modified to display the new fields. A new routine, {\tt print\_mode} is provided in the file {\tt print\_mode.c} to handle the formatting. Since output is getting crowded, we provide a header that labels each column in the output. The source code file {\tt print\_mode.c} can be included directly into the {\tt ls.c} source code.
+	
+	\subsubsection{Changes to Header, Columns}
+	The header will denote the information present in each of the columns.
+	\begin{itemize}
+		\item[] {\tt mode}. The first column will display the mode bits for the file/directory/device.
+		\item[] {\tt name}. Name of the file or directory.
+		\item[] {\tt uid}. User identifier (owner) of the file or directory.
+		\item[]{\tt gid}. Group identifier (owning group) of the file or directory.
+		\item[] {\tt inode}. Inode number of the file or directory.
+		\item[] {\tt size}. Size in bytes of the file or directory.
+	\end{itemize}
+	
+	\subsubsection{Mode Column Values}
+	The first character of the mode bits indicates if the item is a regular file ('-'), directory ('d'), or device file ('c'). If the file is setuid, then the 'x' in the user permissions will be displayed as 'S'.
+	
+	% 2.4
+	\subsection{{\tt exec} System Call}
+	The {\tt exec()} system call now takes into account the execute permissions of user / group / other, only executing the process if proper permissions exist, otherwise will return failure.
+	
+	\subsubsection{New {\tt exec} Permission Check}
+	The {\tt exec} system call will check permissions before executing a process. The file ({\tt inode}) UID and GID are matched against the waiting-to-execute process ({\tt proc}), and the execute mode bits for user, group, and other are checked. If the file permissions exist and the proper execute bits are valid (execute flag is on), then {\tt exec()} proceeds as usual.
+	
+	\subsubsection{{\tt setuid} Functionality}
+	After permission is determined, and right before the context switch takes place to run the process, if the {\tt setuid} flag is on, the process's UID is updated to the UID of the file ({\tt inode}). 
+	
+		
+	
+	
+	
+	% ----------------------------------------------------------------------------------------------------
+	\newpage
+	\section{Implementation}
+	This section describes all files and line numbers for modifications, without including screenshots of code.
+	
+	% 3.1
+	\subsection{{\tt inode} / {\tt dnode} / {\tt stat}}
+	\begin{itemize}
+		\item \emph{New {\tt mode\_t} union in {\tt fs.h} and addition of {\tt uid}, {\tt gid}, and {\tt mode} fields to {\tt inode} and {\tt dnode}}
+		\begin{itemize}
+			\item {\tt fs.h}.
+			\begin{itemize}
+				\item ({\color{red} Lines 23 -- 27}). Constant {\tt N\_DIRECT} is redefined from 12 to 10 if the {\tt CS333\_P5} flag is on.
+				
+				\item ({\color{red} Lines 31 -- 48}). {\tt union mode\_t} is defined.
+				
+				\item ({\color{red} Lines 56 -- 60}). {\tt uid}, {\tt gid}, and {\tt mode} fields are added to the {\tt dinode} structure.\\
+			\end{itemize}
+			
+			\item {\tt file.h}. ({\color{red} Lines 23 -- 27}). {\tt uid}, {\tt gid}, and {\tt mode} fields are added to the {\tt inode} structure.
+			
+		\end{itemize}
+		
+		\item \emph{New {\tt stat\_mode\_t} union in {\tt stat.h} and addition of {\tt uid}, {\tt gid}, and {\tt mode} fields to stat}\\
+		In {\tt stat.h}:
+		\begin{itemize}
+			\item ({\color{red} Lines 5 -- 22}). {\tt union stat\_mode\_t} is defined; identical to {\tt union mode\_t} in {\tt fs.h}.
+			
+			\item ({\color{red} Lines 29 -- 33}). {\tt uid}, {\tt gid}, and {\tt mode} fields are added to {\tt struct stat}.
+		\end{itemize}
+		
+		\item \emph{New default {\tt mode} define in {\tt param.h}}\\
+		({\color{red} Lines 23 -- 25}). {\tt mode} is given a default value of octal {\tt 0755}. Additional {\tt \#define}s of default UID and GID values are defined here as well, to not interfere with the default UID and GID from Project 2.
+		
+		% ***this is worth 4 pts (all others are 1 pt each)
+		\item \emph{Updated functions in {\tt fs.c} to initialize / copy new {\tt uid}, {\tt gid}, and {\tt mode} fields}
+		\begin{itemize}
+			\item {\tt ialloc()} ({\color{red} Lines 189 -- 193}). The {\tt uid}, {\tt gid}, and {\tt mode} fields of the {\tt inode} are initialized to their default values, as defined in {\tt param.h}.
+			
+			\item {\tt iupdate()} ({\color{red} Lines 216 -- 220}). The {\tt uid}, {\tt gid}, and {\tt mode} fields are copied from a modified in-memory {\tt inode} to disk ({\tt dinode}).
+			
+			\item {\tt ilock()} ({\color{red} Lines 298 -- 302}). Read the {\tt inode} from disk if necessary.
+			
+			\item {\tt stati()} ({\color{red} Lines 445 -- 449}). Copy {\tt stat} information from {\tt inode}.
+			
+		\end{itemize}
+		
+		\item \emph{Updated function in {\tt mkfs.c} to initialize {\tt uid}, {\tt gid}, and {\tt mode} fields}\\
+		{\tt ialloc()} ({\color{red} Lines 232 -- 236}). The {\tt uid}, {\tt gid}, and {\tt mode} fields of the {\tt dinode} are initialized to their default values, as defined in {\tt param.h}.
+		
+	\end{itemize}
+
+	% 3.2
+	\subsection{{\tt chmod} / {\tt chown} / {\tt chgrp} System Calls}
+	\begin{itemize}
+		\item \emph{System call handlers is {\tt sysfile.c}}
+		\begin{itemize}
+			\item {\tt sys\_chmod} ({\color{red} Lines 447 -- 464}). Pulls arguments from the stack, performs a bounds check on the octal {\tt mode} argument ({\tt 0 <= mode <= 1023}), and passes arguments off the user-side implementation in {\tt fs.c}.
+			\item {\tt sys\_chown} ({\color{red} Lines 466 -- 483}). Pulls arguments off the stack, performs a bounds check on the integer {\tt uid} argument ({\tt 0 <= uid <= 32767}), and passes arguments off to the user-side implementation in {\tt fs.c}.
+			\item {\tt sys\_chgrp} ({\color{red} Lines 485 -- 502}). Pulls arguments off the stack, performs a bounds check on the integer {\tt gid} argument ({\tt 0 <= gid <= 32767}), and passes arguments off to the user-side implementation in {\tt fs.c}.
+		\end{itemize}
+		
+		\item \emph{Implementation in {\tt fs.c}, including locking and updating of {\tt inode}}
+		\begin{itemize}
+			\item {\tt int chmod(char *pathname, int mode);} ({\color{red} Lines 677 -- 691}).\\
+			A {\tt struct inode} is declared, and {\tt begin\_op()} is called to begin the transaction. The temporary {\tt inode} is populated by passing the argument {\tt pathname} to the {\tt namei()} function (unless the supplied path is invalid, which will end the transaction and return failure). We then lock the {\tt inode} with a call to {\tt ilock()}, and assign the {\tt inode}'s {\tt mode} field to the {\tt mode} argument value. The {\tt inode} is updated and committed to disk with calls to {\tt iupdate()} and {\tt iunlockput()}, the transaction is ended with a call to {\tt end\_op()}, and the function returns success.
+			
+			\item {\tt int chown(char *pathname, int owner);} ({\color{red} Lines 695 -- 709}).\\
+			A {\tt struct inode} is declared, and {\tt begin\_op()} is called to begin the transaction. The temporary {\tt inode} is populated by passing the argument {\tt pathname} to the {\tt namei()} function (unless the supplied path is invalid, which will end the transaction and return failure). We then lock the {\tt inode} with a call to {\tt ilock()}, and assign the {\tt inode}'s {\tt uid} field to the {\tt owner} argument value. The {\tt inode} is updated and committed to disk with calls to {\tt iupdate()} and {\tt iunlockput()}, the transaction is ended with a call to {\tt end\_op()}, and the function returns success.
+			
+			\item {\tt int chgrp(char *pathname, int group);} ({\color{red} Lines 713 -- 727}).\\
+			A {\tt struct inode} is declared, and {\tt begin\_op()} is called to begin the transaction. The temporary {\tt inode} is populated by passing the argument {\tt pathname} to the {\tt namei()} function (unless the supplied path is invalid, which will end the transaction and return failure). We then lock the {\tt inode} with a call to {\tt ilock()}, and assign the {\tt inode}'s {\tt gid} field to the {\tt group} argument value. The {\tt inode} is updated and committed to disk with calls to {\tt iupdate()} and {\tt iunlockput()}, the transaction is ended with a call to {\tt end\_op()}, and the function returns success.
+		\end{itemize}
+		
+		\item \emph{Bounds checking for mode in {\tt sys\_chmod}}\\
+		The {\tt mode} argument value is represented as an octal integer, and its bounds must be checked as the highest permissions the machine will support, {\tt 1777}. This octal number represents the {\tt setuid} bit set, with read/write/execute permissions set for uid/gid/other. Octal {\tt 1777} converted to decimal is {\tt 1023}, which {\tt sys\_chmod} checks for before passing the arguments off to the user-side implementation in {\tt fs.c} ({\color{red} Lines 459 -- 461}).
+		
+		\item \emph{Correct use of integer portion of mode union for setting in {\tt sys\_chmod}}\\
+		As discussed above, the integer equivalent of the octal number is used. The {\tt mode.asInt} field is used to assign {\tt mode} values for the user-side function calls.
+		
+	\end{itemize}	
+	
+	
+	% 3.3
+	\subsection{{\tt chmod} / {\tt chown} / {\tt chgrp} User Commands}
+	\begin{itemize}
+		\item \emph{New commands {\tt chmod}, {\tt chown}, and {\tt chgrp}}\\
+		New user commands for the {\tt chmod}, {\tt chown}, and {\tt chgrp} system calls were added to xv6, as 3 files:
+		\begin{verbatim}
+		chmod.c
+		chown.c
+		chgrp.c
+		\end{verbatim}
+		Additionally, the following existing files were edited to add the system call functionality to xv6:
+		\begin{itemize}
+			\item {\tt usys.S} ({\color{red} Lines 41 -- 43}). Added user-side stubs for the new system calls.
+			\item {\tt syscall.h} ({\color{red} Lines 35 -- 37}). The {\tt chmod}, {\tt chown}, and {\tt chgrp} system call numbers were created by appending to the existing list.
+			\item {\tt syscall.c}. Modified to include the kernel-side function prototype ({\color{red}Lines 117 -- 119}); an entry in the function dispatch table {\tt syscalls[]} ({\color{red}Lines 160 -- 162}); and an entry into the {\tt syscallnames[]} array to print the system call name when the {\tt PRINT\_SYSCALLS} flag is defined ({\color{red} Lines 207 -- 209}).
+			\item {\tt user.h} ({\color{red} Lines 49 -- 51}). Added the user-side function prototypes for the system calls. Prototypes are defined in section 0.2.2 (p.2) of this document. Added the prototype for the predefined {\tt atoo()} function, for use with the {\tt chmod} user command ({\color{red} Line 68}).
+			\item {\tt defs.h} ({\color{red} Lines 58 -- 60}). Added function prototypes for the new system calls. 
+		\end{itemize}
+		
+		\item \emph{Parsing of user input string and conversion to int for {\tt uid}, {\tt gid}, and {\tt mode}}\\
+		All 3 user commands take 2 arguments from the xv6 command line, a {\tt pathname}, and an integer associated with either UID, GID, or mode. The main functionality of all three programs are largely the same, to the point where explaining one can explain all of them. If given more time, perhaps it would be advantageous to roll the common functionality into a helper function that can be shared between all three.\\
+		With one major difference, which will be pointed out, the following implementation describes all three user command programs ({\tt chmod / chown / chgrp}):
+		The user commands begin by checking the that the number of supplied arguments is equal to 3 (one for the command name, one for the {\tt pathname}, and one for {\tt owner / group / mode}). The command fails if there are not exactly 3 arguments ({\color{red} Lines 13 -- 16}). Temporary variables for {\tt pathname} and {\tt uid / gid / mode}, and the arguments are parsed from the command line.\\
+		This is where the major difference lies: In {\tt chown} and {\tt chgrp}, the {\tt atoi()} function is used to convert the argument string into an integer, for the {\tt uid} and {\tt gid}; while in {\tt chmod}, the {\tt atoo()} function is used to convert the string into an \emph{octal} integer, for the {\tt mode} ({\color{red} Line 32}). There is a series of checks in {\tt chmod} that don't exist in {\tt chown} or {\tt chgrp}, which checks the values of the {\tt argv[1]} string at each index to ensure that it falls somewhere between {\tt 0000} and {\tt 1777} ({\tt chmod.c}, {\color{red} Lines 19 -- 29}). An integer, {\tt value}, is set to 1 if the string is determined to be valid, and {\tt atoo} is called to convert the string to an octal. If {\tt valid} was not set, {\tt chmod} exits without setting the values ({\color{red} Line 35}).
+		The arguments are then passed to the system call ({\color{red} Line 21}), the return value is checked for errors ({\color{red} Lines 22 -- 29}), and the program exits ({\tt chmod()}, {\color{red} Lines 38 -- 47}).
+		
+	\end{itemize}
+	
+	% 3.4
+	\subsection{{\tt ls} Command}
+	\begin{itemize}
+		\item \emph{Inclusion and usage of {\tt print\_mode}}\\
+		The supplied {\tt print\_mode} program is included in {\tt ls.c} ({\color{red} Line 6}), and used to print out the mode bits in the reformatted {\tt ls} output ({\color{red} Lines 53 \& 79}).
+		
+		\item \emph{Modification to print statements and new header print}\\
+		The original print statements were wrapped in an {\tt \#ifndef CS333\_P5} statement, and the updated header follows the associated {\tt \#else} ({\color{red} Lines 45 -- 51; 75 -- 77}). The new print statements follow the {\tt print\_mode()} function calls, and add in the new information to fill out each column ({\color{red} Lines 54 \& 80}).\\
+		The new {\tt ls} header is defined in the program's {\tt main()} ({\color{red} Line 95}).
+		
+	\end{itemize}
+	
+	% 3.5
+	\subsection{{\tt exec} System Call}
+	In {\tt exec.c}:
+	\begin{itemize}
+		\item \emph{Copying to {\tt stat} struct to read execute permissions for file's {\tt inode}}\\
+		A {\tt stat} struct is defined and relevant data from the {\tt inode} is copied ({\color{red} Lines 35, 36}).
+		
+		\item \emph{Checking if process has execute permissions based on appropriate user, group, or other execute flag}\\
+		The {\tt stat} structure's UID is checked against the current {\tt proc}'s UID alongside checking the validity of the {\tt stat}'s user execute permission bit ({\tt u\_x}); if that fails, the process is then repeated for matching GID's and validity of the group execute permission bit ({\tt g\_x}); if that too fails, then the validity of the other permission bit ({\tt o\_x})is checked ({\color{red} Lines 37 -- 45}). If any of these conditions are true, a {\tt goto} statement, "{\tt good}", directs control to the rest of the {\tt exec} function ({\color{red} Line 51}). If all of the conditions fail, then the process does not have permission to execute, and {\tt exec} returns failure ({\color{red} Line 47}).
+		
+		\item \emph{Checking {\tt setuid} flag and changing the process uid if necessary}\\
+		Before the context switch occurs to put the process into the CPU, the {\tt stat} structure's {\tt setuid} bit is checked for validity, and if true, sets {\tt proc->uid} to the value of {\tt stat}'s current UID ({\color{red} Lines 122 -- 124}).
+		
+	\end{itemize}
+	
+	
+	
+	% ----------------------------------------------------------------------------------------------------
+	\newpage
+	\section{Testing}
+	
+	\subsection{{\tt p5-test} Command}
+	\begin{enumerate}
+		\item \emph{Proc UID}\\
+		Tests proper functionality of the {\tt setuid()} system call ({\color{red}Figure 1}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 1
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.25\linewidth]{test_screens/test1_1}
+			\caption{{\tt p5-test} Proc UID test.}
+			\label{fig:test11}
+		\end{figure}
+
+		\item \emph{Proc GID}\\
+		Tests proper functionality of the {\tt setgid()} system call ({\color{red}Figure 2}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 2
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.25\linewidth]{test_screens/test1_2}
+			\caption{{\tt p5-test} Proc GID test.}
+			\label{fig:test12}
+		\end{figure}
+
+		\item \emph{chmod}\\
+		Tests proper functionality of the {\tt chmod()} system call ({\color{red}Figure 3}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 3
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.25\linewidth]{test_screens/test1_3}
+			\caption{{\tt p5-test} chmod test.}
+			\label{fig:test13}
+		\end{figure}
+	
+		\item \emph{chown}\\
+		Tests proper functionality of the {\tt chown()} system call ({\color{red}Figure 4}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 4
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.25\linewidth]{test_screens/test1_4}
+			\caption{{\tt p5-test} chown test.}
+			\label{fig:test14}
+		\end{figure}
+	
+		\item \emph{chgrp}\\
+		Tests proper functionality of the {\tt chgrp()} system call ({\color{red}Figure 5}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 5
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.25\linewidth]{test_screens/test1_5}
+			\caption{{\tt p5-test} chgrp test.}
+			\label{fig:test15}
+		\end{figure}
+	
+		\item \emph{exec}\\
+		Tests for proper permissions, and if the permission checks work, it forks and runs a few processes. If the processes with the proper permissions are executed, and the test without proper permission is not executed, the user must inspect the outputs to determine pass/fail ({\color{red}Figure 6}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 6
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.33\linewidth]{test_screens/test1_6}
+			\caption{{\tt p5-test} Exec test.}
+			\label{fig:test16}
+		\end{figure}
+	
+		\item \emph{setuid}\\
+		This tests the functionality of the {\tt mode.setuid} bit, and if the exec process will update its UID when run ({\color{red}Figure 7}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 7
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.33\linewidth]{test_screens/test1_7}
+			\caption{{\tt p5-test} setuid test.}
+			\label{fig:test17}
+		\end{figure}
+	
+	\end{enumerate}
+
+	\paragraph{Result:} All sub-tests pass; Test 1 {\tt PASSES}
+	
+	
+	\subsection{{\tt chmod} Command}
+	\begin{enumerate}
+		\item \emph{Changes mode when given valid parameters}\\
+		The first test is expected to pass, given several valid parameters. First, {\tt chmod} is given a mode value of {\tt 0000} for the {\tt time} command ({\color{red}Figure 8}), eliminating all permissions. Next, the value given is the maximum, {\tt 1777} , setting all permissions and the setuid bit ({\color{red}Figure 9}). Next, the value {\tt 0111} is given, changing the {\tt time} permissions to execute only for user, group, and other ({\color{red}Figure 10}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 8
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test2_1a}
+			\caption{{\tt chmod} given value of 0000 for {\tt time} command.}
+			\label{fig:test21a}
+		\end{figure}
+		
+		% Figure 9
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test2_1b}
+			\caption{{\tt chmod} given value of 1777 for {\tt time} command.}
+			\label{fig:test21b}
+		\end{figure}
+	
+		% Figure 10
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test2_1c}
+			\caption{{\tt chmod} given value of 0111 for {\tt time} command.}
+			\label{fig:test21c}
+		\end{figure}
+
+
+		\item \emph{Fails and does not change mode when given invalid filename}\\
+		For this test, {\tt chmod} was given a pathname for a file that does not exist within the system, "biscuit". A valid mode is given, the defalut 0755. The nonsensical word is used to demonstrate the expected failure of the {\tt chmod} command ({\color{red}Figure 11}).\\
+		This sub-test {\tt PASSES}. 
+	
+		% Figure 11
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test2_2}
+			\caption{{\tt chmod} fails when given an invalid path name.}
+			\label{fig:test22}
+		\end{figure}
+		
+		\item \emph{Fails and does not change mode when given invalid mode}\\
+		For this test, {\tt chmod} was given a value far outside the scope of what a valid mode is. Expecting a failure, a value of 8,888,888. A valid path name is provided, {\tt time}. The test fails as expected and the {\tt time} file's permissions are unaffected ({\color{red}Figure 12}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 12
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test2_3}
+			\caption{{\tt chmod} fails when given an invalid mode value.}
+			\label{fig:test23}
+		\end{figure}
+	
+	\end{enumerate}
+
+	\paragraph{Result:} All sub-tests pass; Test 2 {\tt PASSES}.\\
+	
+	
+	\subsection{{\tt chown} Command}
+	\begin{enumerate}
+		\item \emph{Changes UID when given valid parameters}\\
+		This test is expected to pass, given a valid parameter. To conduct this test, I entered a valid UID for the {\tt time} command ({\color{red} Figure 13}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 13
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test3_1}
+			\caption{{\tt chown} changes the UID for the {\tt time} file.}
+			\label{fig:test31}
+		\end{figure}
+	
+		\item \emph{Fails and does not change UID when given invalid filename}\\
+		This test is expected to fail, when given an invalid filename. To conduct this test, I entered a filename for a file that doesn't exist: "biscuit" ({\color{red} Figure 14}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 14
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test3_2}
+			\caption{{\tt chown} does not change anything when given an invalid filename.}
+			\label{fig:test32}
+		\end{figure}
+	
+		\item \emph{Fails and does not change UID when given invalid UID}\\
+		This test is expected to fail, when given an invalid UID. To conduct this test, I entered a number well outside the bounds of a valid UID ({\color{red} Figure 15}).\\
+		Thus sub-test {\tt PASSES}.
+		
+		% Figure 15
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test3_3}
+			\caption{{\tt chown} does not change the {\tt time} file when given an invalid UID.}
+			\label{fig:test33}
+		\end{figure}
+		
+	\end{enumerate}
+	
+	\paragraph{Result:} All sub-tests pass; Test 3 {\tt PASSES}.\\
+	
+	
+	\subsection{{\tt chgrp} Command}
+	\begin{enumerate}
+		\item \emph{Changes mode when given valid parameters}\\
+		This test is expected to pass, given a valid parameter. To conduct this test, I entered a valid GID for the {\tt time} file ({\color{red} Figure 16}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 16
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test4_1}
+			\caption{{\tt chgrp} changes the GID for the {\tt time} file.}
+			\label{fig:test41}
+		\end{figure}
+				
+		\item \emph{Fails and does not change GID when given invalid filename}\\
+		This test is expected to fail, when given an invalid filename. To conduct this test, I entered a filename for a file that doesn't exist: "biscuit" ({\color{red} Figure 17}).\\
+		This sub-test {\tt PASSES}.
+		
+		% Figure 17
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test4_2}
+			\caption{{\tt chgrp} does not change anything when given an invalid filename.}
+			\label{fig:test42}
+		\end{figure}
+		
+		
+		\item \emph{Fails and does not change GID when given invalid GID}\\
+		This test is expected to fail, when given an invalid GID. To conduct this test, I entered a number well outside the bounds of a valid GID for the {\tt time} file ({\color{red} Figure 18}).\\
+		Thus sub-test {\tt PASSES}.
+		
+		% Figure 18
+		\begin{figure}
+			\centering
+			\includegraphics[width=0.32\linewidth]{test_screens/test4_3}
+			\caption{{\tt chgrp} does not change the {\tt time} file when given an invalid GID.}
+			\label{fig:test43}
+		\end{figure}
+				
+	\end{enumerate}
+
+	\paragraph{Result:} All sub-tests pass; Test 4 {\tt PASSES}.\\
+	
+	
+	\subsection{{\tt ls} Command}
+	\emph{Prints out correct information, including correct permissions for the mode bits}\\
+	This test is expected to pass, and has been demonstrated numerous time already, as all testing was done using the {\tt ls} command ({\color{red} Figures 8 -- 19}). The correct {\tt mode} bits are displayed, along with the correct {\tt uid}, {\tt gid}, {\tt inode} number, and {\tt size} in bytes.
+	\paragraph{Result:} Test 5 {\tt PASSES}.\\
+	
+	\subsection{Change Persistence}
+	\emph{Changes to UID, GID, and mode persist on exiting and rebooting xv6}\\
+	This test is expected to pass. To conduct this test, I gave the {\tt time} file {\tt rwx} permissions for user / group / other, a {\tt uid} of 44, and a {\tt gid} of 55; using the {\tt chmod}, {\tt chown}, and {\tt chgrp} commands, respectively. I then entered {\tt halt} into the xv6 command line, and restarted with {\tt make qemu-nox}. The changes to {\tt time} persisted ({\color{red} Figure 19}).
+	
+	\begin{figure}
+		\centering
+		\includegraphics[width=0.7\linewidth]{test_screens/test6}
+		\caption{Changes to {\tt time} file are shown to persist a shut down and restart.}
+		\label{fig:test6}
+	\end{figure}
+	
+	\paragraph{Result:} Test 6 {\tt PASSES}.\\
+	
+	
+\end{document}

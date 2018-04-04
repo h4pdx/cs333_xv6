@@ -1,0 +1,399 @@
+\documentclass[11pt,letterpaper]{report}
+\usepackage[margin=0.75in]{geometry}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{color}
+\graphicspath{{./images/}{IR}}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead{}
+\lhead{CS333}
+\chead{Project 3 Report}
+\rhead{Ryan Hoover}
+\author{Ryan Hoover}
+\title{Project 3 Report\\CS333 - Intro to Operating Systems\\ Winter 2018}
+\date{2/11/18}
+\begin{document}
+	
+	\maketitle{}
+	
+	\section{Description}
+	
+	For this assignment, I have taken steps to modernize process management in xv6. All process management is impacted. New console control sequences have been implemented to support testing and debugging of the new process management facility. Increasing the efficiency of process management is the primary focus of this project. The current mechanisms are inefficient in that they traverse a single array ({\tt ptable.proc[]}) that contains all processes, regardless of state.\\
+	
+	The new approach will encompass: 
+	\begin{itemize}
+	\item Process scheduling; process allocation and deallocation; transactional semantics for all process state transitions.
+	\item Expand the console debug facility with new control sequences.
+	\item Implement complex concurrency control in the xv6 kernel.
+	\item Use a new Makefile flag ({\tt -DCS333\_P3P4}) for conditional compilation. The same flag will be used in Project 4.
+	\end{itemize}
+
+	\subsection{New State Lists \& Associated Functionality}
+	Six new lists will be added to the current state transition and management approach. Each list corresponds to a state of the xv6 state transition model. The addition of these lists does not mean that we abandon the array of processes that is initialized on boot, but rather will serve to hide how processes are \emph{stored} from how they are \emph{used}. These new lists will be used to more efficiently traverse the existing process array when looking for processes in one of the six possible states.\\
+	Every process will be on one of these six lists. Except for {\tt userinit}, {\tt procdump}, and {\tt getprocs}, the code in {\tt proc.c} no longer references the {\tt ptable.proc[]} array.
+	
+	\subsection{How \& Why}
+	The addition of the state lists affect process management mainly by improving efficiency. In its current form, xv6 traverses the entire {\tt ptable.proc[]} array until it finds a process that matches its search criteria. Almost every function in {\tt proc.c} that accesses a process or performs a state change uses the process table in its entirety. With the addition of the new state lists, this traversal can be kept to a specific list. By following the state transition diagram, and tracing the associated functions that exist already, we can identify which state a process is in when it is accessed within a function, and which state that process will be changed to. This state assertion allows the implementation to directly reference one of these lists, instead of traversing potentially the entire process array.\\
+	Insertion and removal from the lists can now be accomplished with a complexity of \emph{O}(1) rather than \emph{O}(\emph{n}).
+	
+	\subsection{New Control Commands}
+	New console control sequences have been added to print information about the various state lists that have been added to xv6:
+	
+	\begin{itemize}
+		\item {\tt control-R}. Print the Process ID's (PID) of all the processes that are currently on the {\tt ready} list.
+		\item {\tt control-F}. Print the number of processes that are on the {\tt free} list.
+		\item {\tt control-S}. Print the PIDs of all the processes that are currently on the {\tt sleep} list.
+		\item {\tt control-Z}. Print the PIDs and Parent PID's (PPIDs) of all the processes that are currently on the {\tt zombie} list.
+	\end{itemize}
+
+\newpage
+	\section{Deliverables}
+	The following features were added to xv6:
+	
+		\subsection{Process State Lists}
+		
+		To implement the new process state lists to manage state transitions in {\tt proc.c}, a few simple additions were made to the foundational process structure. A {\tt struct StateLists} was added to {\tt proc.c}, and a reference to {\tt StateLists}, "{\tt pLists}", was added to the {\tt ptable} structure.\\
+		{\tt StateLists} contains six {\tt proc} pointers, one for each possible process state: {\tt ready}, {\tt free}, {\tt sleep}, {\tt zombie}, {\tt running}, and {\tt embryo}. These pointers will serve as the "head" of their respective lists. Another {\tt proc} pointer, "{\tt next}", was added to the process structure in {\tt proc.h}, which will be used to form the body of the lists, with processes pointing to the next process in their list. These connections are managed by helper functions.\\
+		The stubs for the additions are as follows:
+		\begin{itemize}
+			\item {\tt proc.c}:
+			\begin{itemize}
+			\item StateLists structure:
+			\begin{verbatim}
+			struct StateLists {
+			struct proc* ready;
+			struct proc* sleep;
+			struct proc* free;
+			struct proc* zombie;
+			struct proc* running;
+			struct proc* embryo;
+			}
+			\end{verbatim}
+			\item Additional line in {\tt struct ptable}:\\
+			{\tt struct StateLists pLists;}
+			\end{itemize}
+			
+			\item {\tt proc.h}:
+			\begin{itemize}
+				\item Within the process structure, {\tt struct proc* next;}
+			\end{itemize}
+			
+		\end{itemize}
+	
+	\subsection{List Management Helper Functions}
+	The addition of the State Lists will inevitably add some complexity to the functionality of {\tt proc.c}. The methods of list manipulation will be identical across all six of the lists, so the common functionality was rolled into several helper functions. These take list and process pointer arguments, to specify which list we are manipulating, and which entry within the list. Another function is there to assert a process is in the correct state (based on a passed in {\tt enum}), or to call {\tt panic} if somehow a process arrives in a state incompatible with the intended lists to be added/removed from.\\
+	The stubs for the list management helper functions are as follows:\\
+	- {\tt static void assertState(struct proc* p, enum procstate state);}\\
+	Compare argument to current process's enumerated state identifier, panic if assertion fails.\\
+	- {\tt static int addToStateListHead(struct proc** sList, struct proc* p);}\\
+	Initialize list if previously empty, or insert argument process at front of list, pushing other elements back in order.\\
+	- {\tt static int addToStateListEnd(struct proc** sList, struct proc* p);}\\
+	Initialize list if previously empty, or insert argument process at the end of the list, maintaining previous order.\\
+	- {\tt static int removeFromStateList(struct proc** sList, struct proc* p);}\\
+	Iterate through specified state list and remove specified process.\\
+	- {\tt static struct proc* removeHead(struct proc** sList);}\\
+	Remove the first process in the specified list, and return the pointer to that process to the calling routine. Primarily used for the scheduler, the first available "ready" process will be queued.\\
+	
+	\subsection{New Console Control Sequences}
+	Debugging commands were added to print out information about newly implemented state lists.\\
+	The additions are as follows:
+	\begin{itemize}
+		\item {\tt control-R}. Print the PIDs of every process currently on the "Ready" list.
+		\item {\tt control-F}. Print the number of processes on the "Free" list.
+		\item {\tt control-S}. Print the PIDs of every process currently on the "Sleep list."
+		\item {\tt control-Z}. Print PIDs and Parent PIDs of every process currently on the "Zombie" list.
+	\end{itemize}
+	
+	\subsection{Changes to Process Table Access \& Performance Benefits}
+	Since the new State Lists have been implemented, there are only three instances in {\tt proc.c} where the {\tt ptable.proc[]} array is directly accessed: in {\tt getprocs()}, {\tt procdump()}, and {\tt userinit()}.\\
+	The process table is allocated and filled with "Unused" processes upon xv6 booting, within {\tt userinit()}. This preliminary allocation is needed, as this is where the process data is actually \emph{stored}, while the State Lists only point to different indices when they are used. Every other method where the process table was referenced in {\tt proc.c} has been changed to reference one or more of the new State Lists instead.\\
+	The lists offer improved performance, potentially at a complexity of \emph{O}(1), as opposed to the \emph{O}(\emph{n}) performance the process table offers. Free list insertion and removal can be managed with a complexity of \emph{O}(1). Insertion into the {\tt sleep}, {\tt zombie}, {\tt running}, and {\tt embryo} lists can also be accomplished in \emph{O}(1) time. These processes can be inserted at the head of their lists, eliminating traversal entirely. Some processes can also be removed with the same complexity, such as {\tt ready} processes being scheduled to run. Other routines, such as search and remove, or add to the end of a list, will remain \emph{O}(\emph{n}), but the size of \emph{n} will be greatly reduced.
+	
+\newpage
+
+	\section{Implementation}
+	This section will identify all files and line numbers for modifications, without including sceenshots or code.
+	
+	\subsection{Process State Lists}
+	
+	\subsubsection{New {\tt struct StateLists} \& Modifications to {\tt proc}, {\tt ptable} Structures}
+	
+	The addition of the process state lists and their implementation resides almost entirely within {\tt proc.c}.\\
+	In {\tt proc.h} ({\color{red} Line 18}), a {\tt struct proc} pointer, called {\tt next}, has been added to the process structure. This allows the {\tt proc} to point to another process, thus enabling the formation of a state list.\\
+	In {\tt proc.c}:
+%\subsubsection{All modifications}
+%	To implement the state list functionality, the following additions were made to {\tt proc.c}:
+	\begin{itemize}
+		\item {\color{red} Lines 14 - 21}. {\tt struct StateLists} is defined here. It contains six {\tt struct proc} pointers, one to be the head of each of the new lists: {\tt ready}, {\tt free}, {\tt sleep}, {\tt zombie}, {\tt running}, and {\tt embryo}.
+		
+		\item {\color{red} Line 35}. A reference to {\tt struct StateLists}, called {\tt pLists}, has been added to {\tt struct ptable}.
+		
+	\end{itemize}
+
+	\subsubsection{Handling Concurrency Issues}
+	Concurrency issues were handled rather simply in this project, as the addition of helper functions to manipulate the various State Lists enabled simplicity in adding and removing processes from a list at the time of their state change. Xv6 already handles concurrency with the \emph{spinlock} feature, and the state changes that already take place within the code are wrapped in an {\tt acquire/release} of the {\tt ptable} lock. The state changes themselves that take place within {\tt proc.c} are simply wrapped in three statements: assert the state of the process first to ensure it is of type that it is expected to be in the given function, and then remove it from the list. The process then changes state in one line, and then our helper function to add it to the specified list is run. These can take place in four lines of code,  and the acquisition of the \emph{spinlock} in the first place means that this all takes place \emph{atomically}.\\
+	The majority of functions in {\tt proc.c} that deal with state changes were changed minimally. Because these state transitions and the list manipulation functions can be added easily, not many changes were needed. Even functions that previously traversed the {\tt ptable} retained the same core functionality after the State Lists modifications were made, and thus the original concurrency controls were left as they were.
+	\begin{itemize}
+		\item {\tt kill(int)} ({\color{red}Lines 982 -- 1065}). This function had to be significantly rewritten, which required shuffling of the concurrency control mechanisms. Because this function accesses any process, regardless of \emph{state}, until it finds the matching process, a traversal of each list is initiated until the {\tt p->pid == pid} condition is matched. Sleeping processes that match the comparison are "woken up" into a {\tt RUNNABLE} state ({\color{red} Line 1003}). A {\tt release(\&ptable.lock)} was added within each loop, if a {\tt pid} matches the passed-in process ID the process. This would kill the process, and {\tt kill} could return true, at which point the lock is released. If no processes are found within a particular list, the next list is searched. If no match is found within any of the six lists, the lock is released and {\tt -1} is returned as error ({\color{red} Line 1070}).
+	\end{itemize}
+	
+	\subsubsection{Initialization of State Lists}
+	
+	The State Lists are initialized in {\tt userinit} ({\color{red} Lines 231 -- 282}). The {\tt free} list is initialized in a loop that traverses the {\tt ptable.proc[]} array and adds each index to the list ({\color{red} Lines 237 -- 242}). At the end of {\tt userinit} the process is made {\tt RUNNABLE}, the {\tt ready} list pointer is directed at it, and the process's {\tt next} pointer is set to {\tt NULL} ({\color{red} Lines 274 -- 277}). The remainder of the lists, ({\tt sleep}, {\tt zombie}, {\tt embryo}, and {\tt running}) are set to {\tt NULL}, or {\tt 0}.
+	
+	\subsubsection{State List Transitions}
+	
+	\paragraph{Creating a New Process}
+	
+	occurs in {\tt userinit} and {\tt fork}, which both call {\tt allocproc} to do the actual allocation. 
+	\begin{itemize}
+		
+	\item In the P3 version of {\tt allocproc} ({\color{red} Lines 125 -- 184}), the form of the original was kept mostly intact. The major difference is the removal of the {\tt ptable.proc[]} traversal, which has been changed to simply assigning a {\tt proc} pointer to the front of the {\tt ptable.pLists.free} list, and if the list is not {\tt NULL}, then to continue on with the initialization ({\color{red} Lines 132 -- 134}).
+	The first process on the free list is then chosen to be allocated, with the state transition on {\color{red} Line 145} wrapped in our list management helper functions ({\color{red} Lines 141 -- 148}). These functions assert the state of the incoming process to ensure that it is on the list we intend to remove it from, removed from the list, changed state to {\tt EMBRYO}, and then is added to the {\tt embryo} State List. If allocation of the kernel stack fails, the transition from {\tt free} list to {\tt embryo} list is reversed, with the process being changed back to an {\tt UNUSED} state ({\color{red} Lines 154 -- 163}).
+	
+	\item {\tt userinit} ({\color{red} Lines  226 -- 277}). This revised method simply adds assertion and list removal and addition wrappers to the change from {\tt EMBRYO} to {\tt RUNNABLE} ({\color{red} Lines 264 -- 272}). Since it is the first process in the CPU, we simply assign the {\tt ready}list to it, and it's {\tt next} pointer to {\tt 0} ({\color{red} Lines 271, 272}).
+	
+	\item {\tt fork} ({\color{red} Lines 352 -- 411}). The revisions to this function are also minimal, simply wrapping the state changes in list manipulation helpers. If the copy fails after {\tt alloproc} returns, then the process's state is changed back to {\tt UNUSED}, and the lists are updated accordingly ({\color{red} Lines 363 -- 374}). If the function executes normally and the process is made {\tt RUNNABLE}, the process is added to the \emph{end} of the {\tt ready} list ({\color{red} Lines 397 -- 406}). This is to implement a "Round-Robin" scheduler.
+	
+	\end{itemize}
+
+	\paragraph{Yield, Sleep, \& Waking Up}
+	
+	were changed minimally in order to manage the state lists, and with the exception of {\tt wakeup1}, which required a change to the {\tt ptable.proc[]} traversal, the only changes were wrapping the state changes in our list manipulation helpers.
+	\begin{itemize}
+		\item {\tt yield} ({\color{red} Lines 816 -- 836}). The process is removed from the {\tt running} list, and is then added to the end of the {\tt ready} list after its state change from {\tt RUNNING} to {\tt RUNNABLE}.
+		\item {\tt sleep} ({\color{red} Lines 863 -- 907}). Similar to {\tt yield}, the only changes here involved wrapping the state change from {\tt RUNNING} to {\tt SLEEPING}, and the associated list removal from {\tt ptable.pLists.running}, and the subsequent addition to {\tt ptable.pLists.sleep}.
+		\item {\tt wakeup1} ({\color{red} Lines 924 -- 946}). This involved a bit more change, as the original function traversed the {\tt ptable.proc[]} array. Instead, there is a check to see if the {\tt ptable.pLists.sleep} State List is {\tt NULL}, and if not, to assign a {\tt struct proc} pointer, {\tt current}, to the head of the list ({\color{red} Line 929}). The {\tt sleep} list is then traversed to check for any processes sleeping on {\tt chan}, in which case they are woken up, their state changed to {\tt RUNNABLE}, removed from the {\tt sleep} list, and added to the {\tt ready} list ({\color{red} Lines 935  -- 942}). This is repeated until the entire {\tt sleep} list has been traversed, greatly reducing the size of \emph{n} in a complexity of \emph{O}(\emph{n}).
+	\end{itemize}
+
+	\paragraph{Killing a Process}
+	
+	 involves finding the process to be killed by matching the argument {\tt int} to the {\tt pid} of a given process. This process had to be split up from its single traversal of the {\tt ptable.proc[]} array to a traversal of all six State Lists ({\color{red} Lines 982 -- 1065}). A {\tt SLEEPING} process that matches the argument {\tt pid} is also changed to a {\tt RUNNABLE} state, with its lists being updated accordingly ({\color{red} Lines 993 -- 1000}). Traversal of lists will occur until a matching {\tt pid} is found, at which case the lock is released and the function exits successfully, or there is no match, and the function releases the lock and reports failure. Only one process can be killed at a time. This is one of the few cases within the new implementation where worst case of size \emph{n} could be equal to the original process table.
+	 
+	 \subsubsection{Modifications to Exit \& Wait}
+	 
+	 These modifications essentially involved splitting the {\tt ptable.proc[]} traversal into several State List traversals. 
+	 
+	 \begin{itemize}
+	 	\item {\tt exit} ({\color{red} Lines 460 -- 545}). The original function accesses the entire {\tt ptable.proc[]} array (process table), looking for abandoned child processes. If one is found, it is passed to {\tt init}. If a {\tt ZOMBIE} state is encountered, a call to {\tt wakeup1(initproc)} is made. The changes to {\tt exit} simply involve splitting this single process table traversal into six State Lists traversals ({\color{red} Lines 488 -- 530}), each accomplishing the same thing as the original array loop. The {\tt RUNNING} process is then changed to {\tt ZOMBIE}, and the appropriate State Lists are updated ({\color{red} Lines 532 -- 540}).
+	 	
+	 	\item {\tt wait} ({\color{red} Lines 592 -- 661}). The original function traversed the process table and checked if the current process was equal to {\tt proc}, and would increment the local variable {\tt havekids} if the match occurred. Also, if a process was a {\tt ZOMBIE}, it was deallocated and changed to {\tt UNUSED}. The same functionality holds here, we just need to split it up across the different lists, but not all. We start at the {\tt ptable.pLists.zombie} list, and traverse looking for a child process ({\color{red} Lines 603 -- 627}). If one is found, the deallocation occurs, the state changed, and the process is removed from the {\tt zombie} list and added to the {\tt unused} list ({\color{red} Lines 611 -- 618}). This would return the {\tt pid} to the calling routine. If no {\tt zombie} children are reaped, then we move on to the {\tt ready}, {\tt running}, and {\tt sleep} lists, looking for children ({\color{red} Lines 629 -- 651}).
+	 \end{itemize}
+ 
+ 	\subsubsection{Changes to the Scheduler \& Maintaining Round Robin}
+ 	
+ 	A simple algorithm was implemented with the addition of the State lists in order to maintain the round robin style: any additions to the {\tt ready} list were added at the end of the lists, and the {\tt scheduler} always takes the first process from the list. This ensures a first-in, first-out queue that avoids starvation. The new {\tt RUNNABLE} processes that are added to the end of the {\tt ready} list incrementally make their way to the front, as processes are removed from the front to be scheduled, and the next in line moves into the front spot.
+ 	
+ 	\begin{itemize}
+ 		\item {\tt scheduler} ({\color{red} Lines 721 -- 760}). This change involved doing away completely with the {\tt ptable.proc[]} array. Instead, we now simply remove the first process on the {\tt ptable.pLists.ready} list. ({\color{red} Lines 733 -- 749}). A helper function removes the first process ({\color{red} Line 735}) and then adds it to the {\tt running} list after the state change, and before its context switch ({\color{red} Line 744}).
+ 		\item {\tt userinit} ({\color{red} Line 271}). This is the first process allocated on boot, so the {\tt ptable.pLists.ready} pointer is assigned to this process, after being removed from the {\tt embryo} list.
+ 		\item {\tt fork} ({\color{red} Line 404}). After being removed from the {\tt embryo} list, a process is moved to the end of the {\tt ready} list.
+ 		\item {\tt yield} ({\color{red} Line 830}). After being removed from the {\tt running} list, the process is added back to the end of the {\tt ready} list.
+ 		\item {\tt wakeup1} ({\color{red} Line 940}). After being "woken up" and removed from the {\tt sleep} list, the process is added to the back of the {\tt ready} list.
+ 	\end{itemize}
+ 	
+ 	\subsection{Helper Functions}
+ 	
+ 	To implement the Process State Lists, and to maintain the concurrency requirements, five separate helper functions were implemented to manipulate the new lists. Rolling the similar list management functionalities into reusable functions enabled the code to maintain its simplicity and readability.
+ 	
+ 	\subsubsection{Maintaining the Invariant} Xv6 must guarantee that a process exists only on a specific list a specific time, reflecting its current state. A helper function ({\tt assertState}) is called to assert the state of a given process and a specified state, where a list change takes place. This ensures that a given process is not added to the wrong list, and that our code will not attempt to remove it from the wrong list. A {\tt panic} call is made if the assertion fails, and error message is displayed.
+ 	
+ 	\subsubsection{Helper Functions Implemented}
+ 	
+ 	Five helper functions were implemented in {\tt proc.c} ({\color{red} Lines 1185 -- 1287}), to maintain cincurrency standards, the invariant quality of state list transitions, and to cleanly and easily manipulate the various State Lists.\\
+ 	The following functions were added:
+ 	\begin{itemize}
+ 		\item {\tt static void assertState(struct proc* p, enum procstate state)} ({\color{red} Lines 1185 -- 1195}).\\
+ 		A panic is called if the {\tt proc} argument is {\tt NULL} ({\color{red} Lines 1188 -- 1190}), or if the {\tt proc}'s {\tt state} does not match the passed-in {\tt enum} ({\color{red} Lines 1191 -- 1193}).
+ 		
+ 		\item {\tt static int addToStateListHead(struct proc** sList, struct proc* p)} ({\color{red} Lines 1197 -- 1214}).\\
+ 		If the argument State List, {\tt sList}, is {\tt NULL}, then the passed-in {\tt proc} is initialized as the first element in the list ({\color{red} Lines 1202 -- 1206}). Otherwise, the argument {\tt proc} is set as the first element in the list, its {\tt next} pointer directed at the front element of the {\tt sList}, finally setting the head of the {\tt sList} to be the new {\tt proc} ({\color{red} Lines 1208, 1209}).
+ 		
+ 		\item {\tt static int addToStateListEnd(struct proc** sList, struct proc* p)} ({\color{red} Lines 1216 -- 1235}).\\
+ 		If the argument State List, {\tt sList}, is {\tt NULL}, then the passed-in {\tt proc} is initialized as the first element in the list ({\color{red} Lines 1222 -- 1226}). Otherwise, a temporary {\tt proc} pointer, {\tt current}, is set to the first element of the {\tt sList}, and a loop is called to traverse {\tt current} to the end of the list. The last element's {\tt next} pointer is set to the argument {\tt proc}, {\tt p}, and {\tt p}'s next pointer is set to {\tt NULL} ({\color{red} Lines 1228 -- 1233}). 
+ 		
+ 		\item {\tt static int removeFromStateList(stuct proc** sList, struct proc* p)} ({\color{red} Lines 1238 -- 1274}).\\
+ 		This function searches the specified list by comparing the argument pointer, {\tt p}, with each element in the list until it finds a match. First, the function checks to see if {\tt p} is the first element in the list ({\color{red} Line 1244}). If so, then no traversal is needed, so it performs another check. If {\tt p} is the first and \emph{only} item in the list, then it's {\tt next} pointer is set to {\tt NULL}, removing it from the list, and the {\tt sList} argument is set to {\tt NULL}, making the list empty ({\color{red} Lines 1246 -- 1250}). If {\tt p} is just the first item in a list of more than one, then a temporary {\tt proc} pointer is assigned to hold onto the next element in {\tt sList}, {\tt p}'s {\tt next} pointer is set to {\tt NULL} to remove it, and the {\tt sList} head is set to the element being held by the temporary pointer, repairing the list ({\color{red} Lines 1253 -- 1256}). If {\tt p} is \emph{not} the first element in {\tt sList}, then two temporary pointers are established to point at the list: {\tt current} starts at the 2nd element in {\tt sList} (we already know {\tt p} isn't the 1st element) and performs the comparison at each element, while {\tt previous} follows one element behind {\tt current} in order to hold onto the rest of the list, in case {\tt p} is found ({\color{red} Lines 1261 -- 1271}). If {\tt current} finds a match, then {\tt previous}'s {\tt next} pointer holds onto {\tt current}'s {\tt next} pointer ({\tt NULL} if {\tt current is the last element}) and {\tt p} is removed from the list ({\color{red} Lines 1265, 1266}).
+ 		 		
+ 		\item {\tt static struct proc* removeHead(struct proc** sList)} ({\color{red} Lines 1277 -- 1287}).\\
+ 		This function is used when the calling routine knows that it just wants the first element off of a given list. It returns a {\tt struct proc} pointer to the removed process, which will need to be caught by the calling routine. It performs the same removal steps as the conditional in {\tt removeFromStateList} that checks for {\tt p} being the first element ({\color{red} Lines 1277 -- 1287}).
+ 	\end{itemize}
+ 
+ 	\subsubsection{Control Commands}
+ 	
+ 	Additional console debug commands were added in Project 3: {\tt control-R}, {\tt control-F}, {\tt control-S}, and {\tt control-Z}. Support for these commands was added in {\tt console.c} ({\color{red} Lines 217 -- 228; 248 -- 270}), implementation for them was added to {\tt proc.c} ({\color{red} Lines 1290 -- 1373}), and stubs for them were added to {\tt proc.h} ({\color{red} Lines 91 -- 94}).\\
+ 	
+ 	The following files were edited to implement the control commands:
+ 	
+ 	\begin{itemize}
+ 		\item {\tt console.c}. The function {\tt consoleitr} ({\color{red} Line 190}) was edited to emulate the execution of {\tt control-P}, which increments an indicator {\tt int} to perform an action after the switch statement. The functions implemented in {\tt proc.c} cannot be called within the switch, due to the console lock, so an indicator is set a specific number to indicate which control function is to be called, depending on which letter the user specified ({\color{red} Lines 217 -- 228}). After the switch statement, the integer set earlier will determine which corresponding control command should be called ({\color{red} Lines 248 -- 270}).
+ 		
+ 		\item {\tt proc.c}. added four functions to implement the new console commands:
+ 		\begin{verbatim}
+ 		void printReadyList(void)
+ 		void printFreeList(void)
+ 		void printSleepList(void)
+ 		void printZombieList(void)
+ 		\end{verbatim}
+ 		Printing the {\tt ready}, {\tt sleep}, and {\tt zombie} lists are nearly identical, except that {\tt zombie} prints out the {\tt PID} and {\tt PPID}s of the processes on the list, instead of just the {\tt PID}s. All three functions assign a temporary pointer to the head of their respective lists, and traverse the entire list, displaying each element's Process ID ({\color{red} Lines 1290 -- 1307; 1332 -- 1373}). Printing the {\tt free} list is slightly simpler: this function traverses the {\tt free} list and increments an {\tt int} at each element, then displays the count ({\color{red} Lines 1310 -- 1329}).
+ 	\end{itemize}
+ 
+ \newpage
+ 	
+ 	\section{Required Tests}
+ 	
+ 	\subsection{Test 1}
+ 	Demonstrate that the free list is correctly initialized when xv6 is booted.\\
+ 	
+ 	In ({\color{red} Figure 1}), we see that the {\tt free} list has 62 processes. The max number of processes, {\tt NPROC}, is set to 64. After boot, {\tt shell} and {\tt init} are the only two active processes, which are at this time in the {\tt sleep} state. 64 total processes, minus the two sleeping processes, gives us the 62 processes in the {\tt free} list
+ 	
+ 	\paragraph{Result:} This test {\tt PASSES}.
+ 	
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test1_freeinit}
+	\caption{xv6 is booted, {\tt ctrl-F} is pressed, followed by {\tt ctrl-p}.}
+	\label{fig:test1freeinit}
+\end{figure}
+ 	
+ 	\subsection{Test 2}
+ 	Demonstrate that the free list is correctly updated when a new process is allocated (state transitions from {\tt UNUSED}) and when a process is deallocated (state transitions to {\tt UNUSED}).\\
+ 	
+ 	For this test, I ran a command that would allocate as many processes as allowed, {\tt forktest}, and pressed {\tt control-F} during its execution, which displayed much less than the maximum of 64 processes (62 with {\tt init} and {\tt sh} in {\tt sleep}), and then again after the command executed, once again showing 62 {\tt UNUSED} processes. This demonstrates that the {\tt free} list is correctly updated. See ({\color{red} Figure 2}).
+ 	
+ 	\paragraph{Result:} This test {\tt PASSES}.
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test2_freeupd}
+	\caption{Showing {\tt free list being updated}}
+	\label{fig:test2freeupd}
+\end{figure}
+ 	
+ 	\subsection{Test 3}
+ 	Demonstrate the {\tt kill} shell command causes a process to correctly transition to the {\tt ZOMBIE} and then {\tt UNUSED} states.\\
+ 	
+ 	For this test, we can kill the {\tt shell} process, and watch it be reallocated with a new PID. See ({\color{red} Figures 3 \& 4 }).
+ 	
+ 	While running my test program {\tt zombieFree}, I can see that the {\tt kill} command that it calls ({\color{red} Line 28} transfers a process from {\tt ZOMBIE to UNUSED}. See ({\color{red} Figure 5}). 
+ 	
+ 	\paragraph{Result:} This test {\tt PASSES}.
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test3_zombie}
+	\caption{Shell transitions to {\tt ZOMBIE} before {\tt UNUSED}, and then is reallocated.}
+	\label{fig:test3zombie}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test3_kill}
+	\caption{Following the state transitions, {\tt sh} must go to {\tt ZOMBIE}, then {\tt UNUSED}, before being reallocated.}
+	\label{fig:test3kill}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test3_zombiefree}
+	\caption{{\tt zombieFree} executing, creating many {\tt ZOMBIE} processes and changing them to {\tt UNUSED}.}
+	\label{fig:test3zombiefree}
+\end{figure}
+ 	
+ 	\subsection{Test 4}
+ 	Demonstrate that round-robin scheduling is enforced. Specifically, the processes that are already in the {\tt ready} lists are scheduled before processes added afterwards; any processes transitioning to the {\tt RUNNING} state are removed from the front of the {\tt ready} list. Processes transitioning to the {\tt RUNNABLE} state must be added at the back of the {\tt ready} list.
+ 	
+ 	A slight modification to {\tt zombieTest.c} allows the created processes to spin indefinitely, ({\color{red} Line 13}), allowing us to hit {\tt ctrl-R} to see that the processes are being scheduled and run repeatedly. By pressing {\tt ctrl-P} we can also see that the processes are continually gaining more time in the CPU, and that the time spent in the CPU is very similar.
+ 	See ({\color{red} Figures 6, 7, 8, \& 9}).
+ 	
+ 	\paragraph{Result:} This test {\tt PASSES}.
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test4}
+	\caption{The PIDs are shown being rotated from the first in line to appearing in the back, after having been scheduled and descheduled, and scheduled again}
+	\label{fig:test4}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test4_cpu1}
+	\caption{NOTE: The name zombieFree is longer than the name field in ctrl-p. and throws off the alignment CPU time is shown one column to the right.}
+	\label{fig:test4cpu1}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test4_cpu2}
+	\caption{Tracking CPU time increase are equally gradual in each process.}
+	\label{fig:test4cpu2}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test4_cpu3}
+	\caption{Further tracing of updated CPU time}
+	\label{fig:test4cpu3}
+\end{figure}
+
+ 	
+ 	\subsection{Test 5}
+ 	Demonstrate that the {\tt sleep} list is correctly updated when a process sleeps (state transitions to {\tt SLEEPING}) and when processes are woken (state transitions from {\tt SLEEPING}).
+ 	
+ 	This test can be seen while running zombieFree, the sleep list is updated several times. First all of the processes are put to sleep, and then run, and then exited to the {\tt ZOMBIE} state. We can catch this mass sleep list usage at first ({\color{red} Figures 10 \& 11})
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test5_sleep1}
+	\caption{Sleep list heavily populated, and then emptied.}
+	\label{fig:test5sleep1}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test5_sleep2}
+	\caption{Sleep processes after initial allocation.}
+	\label{fig:test5sleep2}
+\end{figure}
+
+\paragraph{Result:} This test {\tt PASSES.}
+ 	
+ 	\subsection{Test 6}
+ 	Demonstrate that the {\tt zombie} list is correctly updated when a process exits (state transitions to {\tt ZOMBIE}) and when a process is reaped (state transitions from {\tt ZOMBIE}).
+ 	
+ 	Several screenshots up to this point have demonstrated the updating of the zombie lists, most notably ({\color{red} Figure 5}).
+ 	
+ 	\paragraph{Result:} This test {\tt PASSES.}
+ 	
+ 	\subsection{Test 7}
+ 	Demonstrate that output for the console commands {\tt control-R}, {\tt control-F}, {\tt control-S}, and {\tt control-Z} are correct.
+ 	
+ 	({\color{red} Figure 12})
+ 	({\color{red} Figures 13})
+ 	
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test7_free_sleep}
+	\caption{ctrl-s and ctrl-f demonstrated}
+	\label{fig:test7freesleep}
+\end{figure}
+ 	
+\begin{figure}
+	\centering
+	\includegraphics[width=0.7\linewidth]{p3_testscreens/test7_zombie}
+	\caption{Showing ctrl-z}
+	\label{fig:test7zombie}
+\end{figure}
+
+
+ 	\paragraph{Result:} This test {\tt PASSES.}
+ 	
+
+
+\end{document}

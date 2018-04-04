@@ -1,0 +1,422 @@
+\documentclass[11pt,letterpaper]{report}
+\usepackage[margin=0.75in]{geometry}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{color}
+\graphicspath{{./images/}{IR}}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead{}
+\lhead{CS333}
+\chead{Project 2 Report}
+\rhead{Ryan Hoover}
+\author{Ryan Hoover}
+\title{Project Two Report\\Introduction to Operating Systems\\ Winter 2017}
+\date{}
+\begin{document}
+%	\maketitle	
+
+	\section*{Description}
+	For this assignment, I became familiar with: locks for kernel-level data structures; concurrency; implementing new system calls to support process ownership; implement a new system call to obtain process information; implement tracking for the amount of time a process uses a CPU; implementing a new user-level command to display process state; implementing a new user-level command to time process execution; modifying the xv6 console to display additional process information; and writing a project report to properly document project work.\\
+	
+	\section*{Deliverables}
+	The following features were added to xv6:
+	
+	\begin{itemize}
+		
+	\item UIDs, GIDs, \& PPIDS:
+	
+	At this point xv6 has no concept of user or groups. User IDs (UID) and Group IDs (GID) will be added to xv6, where we will \emph{track process ownership}. The PPID is the "parent process identifer" or parent PID. This will be determined on-the-fly, wiht process one being shown as its own parent; consistent with UNIX/Linux.
+	
+	The kernel code cannot assume that arguments passed into the kernel are valid, and so the kernel code must check the values for the correct range ({\tt 0 <= value <= 32767}).
+			
+	The following items were added to xv6 to implement the UID, GID, \& PPID features:
+			\begin{itemize}
+	
+			\item User ID ({\tt uid}) and GID ({\tt gid}) fields to the process structure.
+	
+			\item Parent Process ID ({\tt ppid}) of current process enabled to be determined on-the-fly.
+	
+			\item Ability to set UID and GID of current process.
+	
+			\item System calls to access the User ID, Group ID, and Parent Process ID of the current process; system calls to set the User ID and Group ID:
+			\begin{verbatim}
+			uint getuid(void)	// UID of the current process
+			uint getgid(void) // GID of the current process
+			uint getppid(void) // PPID of parent process
+			int setuid(uint)	// set UID
+			int setgid(uint)	// set GID
+			\end{verbatim}
+
+			\item Test code for the new UID, GID, and PPID system calls.
+	
+			\item A new system call, {\tt testids}, for running the new test program.
+
+			\end{itemize}
+	
+	\item Process Execution Time:
+	
+	Currently, our xv6 system tracks when a process enters the system and displays \emph{elapsed} time in the console command "control-P". We will now track how much CPU time a process uses. There are two situations where a context switch occurs in xv6: one to put a process into a CPU and one to take a process out of its current CPU.
+	
+	The following items were added to xv6 to implement Process Execution Time:
+
+		\begin{itemize}
+		
+		\item Fields for Total Elapsed Ticks, and Ticks when sheduled within a CPU:
+		\begin{verbatim}
+		uint cpu_ticks_total	// total elapsed ticks in CPU
+		uint cpu_ticks_in		 // ticks when scheduled
+		\end{verbatim}
+	
+		\end{itemize}
+	
+	\item The "ps" Command:
+	
+	Xv6 does not have the {\tt ps} command like Linux, so we will have to add our own. This command is used to find out information regarding active processes in the system. A {\tt ps} program will be written to implement the system call. An active process will be defined in the {\tt RUNNABLE}, {\tt SLEEPING}, or {\tt RUNNING} state. Under no circumstances will processes in either the {\tt UNUSED} or {\tt EMBRYO} states be included.
+
+	\item The Time Command:
+	User command to determine the number of seconds that a program takes to run.
+	\end{itemize}
+
+\newpage	
+	\section*{Implementation}
+	
+	\subsection*{UIDs, GIDs, and PPIDs}
+	All code for the deliverables was conditionally compiled using the {\tt CS333\_P2} flag in the {\tt Makefile} ({\color{red} line 3}). 
+	
+	The following files were modified to add the UID, GID, and PPID fields and associated system calls:
+	
+	\begin{itemize}
+		
+		\item {\tt param.h.} ({\color{red}Lines 15 \& 16}) Two {\tt \#define} statements added, one each for {\tt UID} and {\tt GID}, for initializing the first process and increasing readability of the code.
+		
+		\item {\tt proc.h.} ({\color{red} Lines 72 - 77}) Five fields were added to the process structure ({\tt struct proc}) :
+		\begin{verbatim}
+		uint getuid(void)	// UID of the current process
+		uint getgid(void) // GID of the current process
+		uint getppid(void) // PPID of parent process
+		int setuid(uint)	// set UIDppss
+		int setgid(uint)	// set GID
+		\end{verbatim}
+		
+		\item {\tt proc.c.} UID, GID, and PPID values were added to the routines where new processes are created:
+		\begin{itemize}
+			\item {\color{red}Lines 108 - 112} In the routine {\tt userinit()}, where the first process is created piece-by-piece at boot time, the {\tt proc} structure's {\tt uid} and {\tt gid} fields are initialized to the {\tt UID} and {\tt GID} constands defined in {\tt param.h}.
+			
+			\item {\color{red}Lines 174 - 177} In the routine {\tt fork()}, where a new process structure is allocated and the original process is copied into the new one, the new {\tt uid} and {\tt gid} fields in {\tt struct proc} need to be updated as well. They are given the value of the original process.
+		\end{itemize}
+	
+	\item {\tt sh.c.} We should be able to set the UID and GID of the currently executing shell with appropriate built-in commands. The shell includes in the parser the ability to identify built-ins, as built-ins begin with an underscore (\_). These have already been implemented. I removed the phrase {\tt NOT\_YET} from the code {\tt \#ifdef USE\_BUILTINS\_NOT\_YET} ({\color{red}Lines 145 \& 260}). The lines now read {\tt \#ifdef USE\_BUILTINS}.
+	
+	\item {\tt testids.c.} A simple test program was created to test the five new system calls for setting and getting the UID, GID, and PPID. A line ({\tt \_testids}) was appended in the {\tt Makefile} ({\color{red}Line 21}) to add a system call for the new test program.\
+	
+	\item {\tt usys.S.} The user-side subs for the new system calls were added ({\color{red}Lines 34 - 38}).
+	
+	\item {\tt syscall.h.} The system call numbers for {\tt getuid(), getgid(), getppid(), setuid(uint), \& setgid(uint)} were created by appending the existing list ({\color{red}Lines 28 - 32}).
+	
+	\item {\tt syscall.c}
+		\begin{itemize}
+			\item Modified to include the kernel-side function prototypes ({\color{red}Lines 106 - 110}).
+			\item Added entries to the function dispatch table {\tt syscalls[]} ({\color{red}Lines 141 - 145}).
+			\item Added entries to the {\tt syscallnames[]} array to print the system call name when the {\tt PRINT\_SYSCALLS} flag is defined ({\color{red}Lines 180 - 184}).
+		\end{itemize}
+	
+	\item {\tt sysproc.c.} The following functions were added to this file to implement the kernel-side system calls:
+		\begin{itemize}
+			\item {\tt sys\_getuid()} ({\color{red}Lines 115 - 118}) Returns the UID value of the current process.
+			\item {\tt sys\_getgid()} ({\color{red}Lines 121 - 124}) Returns the GID value of the current process.
+			\item {\tt sys\_getppid()} ({\color{red}Lines 127 - 130}) Returns the PID value of the current process' parent.
+			\item {\tt sys\_setuid(uint)} ({\color{red}Lines 133 - 145}) Populates an {\tt int} value pulled from an argument on the stack, then assigns that value to the UID of the current process.
+			\item {\tt sys\_setuid(uint)} ({\color{red}Lines 148 - 160}) Populates an {\tt int} value pulled from an argument on the stack, then assigns that value to the GID of the current process.
+		\end{itemize}
+			
+	\end{itemize}
+\newpage
+	\subsection*{Process Execution Time}
+	
+	The following files were modified to track how much CPU time a process uses:
+	
+	\begin{itemize}
+
+	\item {\tt proc.h.} ({\color{red}Lines 76, 77}) added fields to process structure: 
+	\begin{verbatim}
+	uint cpu_ticks_total;		// total elapsed ticks in CPU
+	uint cpu_ticks_in;			 // ticks when scheduled
+	\end{verbatim}
+	
+	\item {\tt proc.c.}
+		\begin{itemize}
+			\item Modified {\tt allocproc()} to initialize the new {\tt cpu\_ticks\_total \& cpu\_ticks\_in} fields to {\tt 0} ({\color{red}Lines 81, 82}).
+			
+			\item Modified {\tt scheduler()} ({\color{red} Line 333}) to set the process to being scheduled's {\tt cpu\_ticks\_in} field to the value of the global {\tt ticks}, at the time of scheduling.
+			
+			\item Modified {\tt sched()} ({\color{red} Line 379}) to set accumulate the time the process has been in the scheduler, at the time of its removal from the schduler, This is done by subtracting {\tt cpu\_ticks\_in} from {\tt ticks} and adding that to the total {\tt cpu\_ticks\_total} field, this keeping track of total seconds the process has been scheduled (spent time in the CPU).
+		\end{itemize}
+	
+	\end{itemize}	
+\newpage
+	\subsection*{The "ps" Command}
+	The following files were modified to add the {\tt ps} system call.
+	
+	\begin{itemize}
+		
+	\item {\tt ps.c.} This file was created to run the {\tt ps} command, using a system call. A {\tt max} table size is determined, and an array of {\tt uproc} structures is allocated with {\tt malloc()} ({\color{red}Line 23}). The max table size and newly allocated {\tt utable} are passed into the system call, {\tt getprocs}, in order to be populated with copied information about active processes. The system call returns an {\tt int} value for the number of active processes copied ({\color{red}Line 25}). This active process count is checked to determine an error code return, and then checks for 0 active processes. Both instances free the dynamic memory and exit the program ({\color{red} Lines 27 - 37}). If it is determined that the number of copied processes number at least 1, and no more than {\tt max}, the program will loop through the newly populated {\tt utable} and display all of the information of each {\tt uproc} ({\color{red} Lines 39 - 49}). After all of the processes have been displayed, the dynamic memory is freed and the program exits.
+	
+	\item {\tt sysproc.c.} A new kernel-side system call, {\tt int sys\_getproc(void)}, was added to execute the {\tt ps} command ({\color{red}Lines 162 - 174}). It declares local a {\tt uint} variable and a {\tt struct uproc} pointer, then pulls the arguments off of the stack to populate the local variables ({\color{red}Lines 165 - 172}). The variables are then passed to another function of the same name ({\tt int getprocs(uint max, struct uproc *table)}), implemented in {\tt proc.c} ({\color{red}Line 173}).
+	
+	\item {\tt proc.c.} This function traverses the process table ({\tt ptable}), determines active processes ({\tt RUNNING}, {\tt RUNNABLE,} or {\tt SLEEPING}) and then copies the relevant information into the {\tt uproc} array.\\
+	 A count is kept of the number of processes copied, and that number is returned to {\tt sys\_getprocs()}, which then returns that value back to the calling routine in {\tt ps.c}. A local {\tt int} variable is declared to keep count of the copied processes and then be the return value ({\color{red}Line 620}). A local {\tt struct proc} pointer is declared, to be pointed at the process table ({\color{red}Line 621}) after the lock is aquired ({\color{red}Line 622}). The {\tt proc} pointer is directed at the first element of {\tt ptable}, and proceeds to loop through each index of the process table, checking for active states ({\color{red}Line 623 - 625}) as defined above. Upon reaching an active process, the fields of {\tt struct proc} are copied into the current index of {\tt struct uproc}, at which point the index is incremented ({\color{red}Lines 626 - 639}). The lock is released, and the {\tt uproc table} index is returned to the calling routine ({\color{red}Lines 642, 643}).
+	 
+	 \item {\tt uproc.h.} The {\tt uproc} struct was added because all of the fields of the original {\tt struct proc} that we are copying from are not needed for the implementation of {\tt ps.c}. \\
+	 The fields of {\tt uproc} are:
+	 \begin{verbatim}
+	 uint pid;	// Process ID
+	 uint uid;	// User ID
+	 uint gid;	// Group ID
+	 uint ppid;	// Parent Process ID
+	 uint elapsed_ticks;	// time since process was scheduled, in miliseconds
+	 uint CPU_total_ticks; // total time process has spent in CPU, in miliseconds
+	 char state[STRMAX]; // RUNNING, RUNNABLE, or SLEEPING
+	 uint size; // size of process in bytes
+	 char name[STRMAX]; // name of process
+	 \end{verbatim}
+	 
+	 \item {\tt usys.S.} The user-side stub for the new system call was added ({\color{red}Line 39}).
+	 
+	 \item {\tt user.h.} The user-side function prototype for the {\tt ps} system call was added ({\color{red}Line 39}). The system call takes an unsigned integer and a pointer to a user-defined {\tt struct uproc}. The prototype is:\\
+	 {\tt int getprocs(uint, struct uproc*);}\\
+	 The file {\tt uproc.h} contains the {\tt uproc} definition.
+	 
+	 \item {\tt syscall.h.} The {\tt getprocs} system call number was created by appending the existing list ({\color{red}Line 33}).
+	 
+	 \item {\tt syscall.c}. Modified to include the kernel-side function prototype ({\color{red}line 111}); an entry in the function dispatch table {\tt syscalls[]} ({\color{red}line 146}); and an entry into the {\tt syscallnames[]} array to print the system call name when the {\tt PRINT\_SYSCALLS} flag is defined ({\color{red}line 185}). All prototypes here are defined as taking a \emph{void} parameter as the function call arguments are passed into the kernel on the stack. Each implementation ({\tt sys\_getprocs()}) retrieves the arguments from the stack according to the syntax of the system call.
+	 
+	 \item {\tt ps-test} Test program and command supplied by Instructor Morrissey.
+	
+	\end{itemize}
+
+	\newpage
+	\subsection*{Time User Command}
+	
+	The {\tt time} user command will determine the number of seconds that a program takes to run. This command expects at least one argument: a string containing the name of the program or command that we wish to time. The {\tt time} command will {\tt fork} itself and {\tt exec} the child process, timing how long it takes. There can be multiple {\tt time} commands called within the same command line, in which case they will recursively time how long it takes the subsequent invocations to time their subsequent invocations, and so on. In the case of no program name being provided, an output of {\tt 0.00} seconds is displayed. The {\tt time} command is based on the global variable {\tt ticks}.\\
+	The file {\tt time.c} was edited to add the {\tt time} command:
+	\begin{itemize}
+		\item The {\tt time} user command begins by checking arguments passed in from the command line. If there are zero or less arguments, the program simply exits immediately ({\color{red}lines 8 - 10}). This is simply for checking for an error, there will always be at least one argument when this program is run: itself.
+		\item Local ({\tt uint}) variables are declared to keep track of: ticks before the program argument is time tested, ticks afterwards, the time it took to run the program, and then integers to calcualte various decimal places ({\color{red}line 11}).
+		\item When there is only one argument, which will always be {\tt time}, the program will output {\tt 0.00} seconds, and exit ({\color{red}lines 12 - 15}).
+		\item When there are 2 or more arguments, this means at least one program has been provided to time test.
+		\item The {\tt start\_time} is recorded by invoking the system call {\tt upticks()} ({\color{red}line 16}), and {\tt fork()} is launched ({\color{red}line 17}).
+		\item Since {\tt fork()} returns twice, we have one condition for if the {\tt pid} returned is greater than 0, which means parent process. Parent processes are directed to {\tt wait} for the child process to finish ({\color{red}lines 18 - 20}).
+		\item Another conditional checks if {\tt pid} is 0, which means child process, which then calls {\tt exec(argv[1], (argv + 1));} ({\color{red}lines 21 - 24}).
+		\item The first index in {\tt argv[]} will always be {\tt time}, and so this uses the second argument name, and uses pointer arithmetic with the second argument, directing the {\tt exec} command to the 2nd index in the {\tt argv} array.
+		\item {\tt end\_time} is recorded by once again calling {\tt upticks()} ({\color{red}line 25}), and {\tt elapsed\_time} is calculated ({\color{red}line 26}). These are in miliseconds, and the print functionality does not allow for directly printing floating point numbers, so minor calculations are needed.
+		\item The ouput needs to be in format {\tt x.xx}, and so modulo arithmetic is used to determine the {\tt sec} whole number, and the tenth and hundredth decimal places ({\color{red}lines 27 -- 29}).
+		\item The results are printed to the screen, and the program exits ({\color{red}lines 31, 32}).
+	\end{itemize}
+	
+	
+	\newpage
+		
+	\subsection*{Further control--p Modifications}
+	The control--p console command prints debugging information to the console. The following modifications were made to capture and display elapsed time as part of the existing control--p debugging information.\\
+	The routine {\tt procdump()} in {\tt proc.c} was further modified from Project 1 to display more information: 
+	
+	\begin{itemize}
+	
+	\item Print a header ({\color{red}lines 571, 572}) to the console, constisting of:
+	\begin{verbatim}
+	PID, Name, UID, GID, PPID, Elapsed, CPU, State, Size, PCs
+	\end{verbatim}
+	
+	\item Calculate the \emph{elapsed time} since process creation ({\color{red}lines 537--549}). This section calculates elapsed time as seconds and hundredths of seconds as the granularity of the {\tt ticks} variable is at hundredths of a second.
+	
+	\item Display fields in appropriate order for this redesign ({\color{red}lines 598--602}).
+	
+	\item Certain blocks of code are wrapped in a preprocessor statement {\tt \#ifndef CS333\_P2} ({\color{red}lines 562--567; 584--586; 590--594}). This is to ensure to output the changes to {\tt ctrl-p} properly while the {\tt P2} flag is on in the {\tt Makefile}, while also allowing for the flags for Program 1 to be reenabled and still function how it used to.222
+	
+	\end{itemize}
+	
+
+\newpage
+	\section*{Testing}
+	
+	\subsection*{UIDs, GIDs, \& PPIDs}
+	
+	\begin{itemize}
+	
+	\item Test: Correct setting of the UID/GID with a valid parameter for the system call. (see Figure 1)\\
+	This test {\tt PASSES}.
+	\item Test: Correct behavior of the UID/GID system calls with invalid parameters (including returning an error code). (see Figure 1)\\
+	This test {\tt PASSES}.
+	\item Test: Correct PPID returned for the {\tt getppid()} system call. (see Figures 1, 2)\\
+	This test {\tt PASSES}.
+	
+	These three tests can be demonstrated in the {\tt testids} user command. The PPID being correctly set can also be seen with the {\tt ctrl-p} and {\tt ps} commands. Both will be demonstrated.\\
+	See Figures 1 and 2.
+	
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/uidgid_testids_test}
+	\caption[uidgid]{Using {\tt testids} user command.}
+	\label{fig:uidgidtestidstest}
+\end{figure}
+	
+	This demonstrates the correct setting of UID/GID fields with valid parameters. This also demonstrates correct behavior of the UID/GID system calls, showing how error codes are returned and handled. Getting parent process is also shown.\\
+	
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/ppid_propersettingtest}
+	\caption[uidgid]{Using {\tt ps} command to show proper setting and getting of PPID.}
+	\label{fig:ppidpropersettingtest}
+\end{figure}
+	
+	The {\tt ps} command allows us to follow (Figure 2) how the processes are given PIDs and PPIDs, and we can see that the processes are correctly labeled. We can also see that {\tt fork()} is properly setting UID/GID, as they are all supposed to be 0.
+	
+	These tests all {\tt PASS}.
+	
+	\item Test: Using the shell built-in commands to show proper functioning of the UID/GID system calls.\\
+	For this test I used the built-in shell commands, {\tt \_set uid \emph{int}}, {\tt \_set gid \emph{int}}, {\tt \_get uid}, and {\tt \_get gid}, typing them in to the command prompt. (see Figure 3)
+	
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/uidgid_shellcommandtest}
+	\caption[uidgid]{Using shell commands for UID and GID}
+	\label{fig:uidgidshellcommandtest}
+\end{figure}
+
+	The output from the xv6 shell shows that the 4 built-in commands for setting/getting UIDs and GIDs works as expected.
+	
+	This test {\tt PASSES}.\\
+	
+	\item Test: Correct setting of the UID/GID by the {\tt fork()} system call.
+	The {\tt fork()} system call copies existing processes, and currently the UID and GID are both initilaized in {\tt allocproc()} to 0.\\
+	Figure 2 properly demonstrates {\tt fork()} correctly copying the initial values.\\
+	Figure 4 demonstrates that {\tt fork()} properly copies UIDs and GIDs set manually via shell prompt and system call.\\
+	This test {\tt PASSES}.
+	
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/fork_copyuidgid_test}
+	\caption[uidgid]{{\tt fork} copies manually set UIDs and GIDs.}
+	\label{fig:forkcopyuidgidtest}
+\end{figure}
+		
+	\end{itemize}
+	
+	
+	\subsection*{The "ps" Command}
+	
+	\begin{itemize}
+	
+	\item Test: {\tt getprocs()} tests for the parameter {\tt max} set to 1, 16, 64, and 72 to show that the data structure is fileld properly for the specific values of {\tt max}.
+	(See Figures 8-13)
+	This test {\tt PASSES}.
+	
+	\item Test: {\tt ps} command. Show that the correct processes are output and that the information matches {\tt ctrl-p}.\\
+	For this test, I alternated entering {\tt ctrl-p} and {\tt ps} at the shell prompt, in order to demonstrate the identical outputs of the two functions. The proper elapsed time is also shown.\\
+	(See Figure 5).\\
+	This test {\tt PASSES}.
+	
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/ctrlppscmdtest}
+	\caption[ctrlpps]{{\tt ctrl-p} and {\tt ps} command}
+	\label{fig:ctrlppscmdtest}
+\end{figure}
+	
+	\item Test: Correct elapsed time shown in {\tt ctrl-p}.
+	I tested this by launching xv6 and pressing {\tt ctrl-p} roughly every second.\\
+	(See Figure 6).
+	
+	This test {\tt PASSES}.
+	
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/ctrlp_correcttime}
+	\caption[ctrlpps]{Correctly shows elapsed time with {\tt ctrl-p}.}
+	\label{fig:ctrlpcorrecttime}
+\end{figure}
+	
+	\end{itemize}
+	
+	\subsection*{Time User Command}
+	
+	\begin{itemize}
+	
+	\item Test: Time command:
+	\begin{itemize}
+		\item No argument case.\\
+		This is tested by entering "time" into the shell prompt. 0.00 seconds is returned.\\
+		(See Figure 7).\\
+		This test {\tt PASSES}.
+		\item Bad command.\\
+		This is tested by entering a nonsense string of characters into the shell prompt. Time is taken to run the command and determine it is nothing. Normal return to shell.\\
+		(See Figure 7).\\		
+		This test {\tt PASSES}.
+		\item Command with no arguments.\\
+		This was tested by entering {\tt time ps} at the shell prompt ({\tt time} was called on itself as well to demonstrate further.) {\tt ps} takes no arguments. Time returned the execution time of {\tt ps} and the second {\tt time} command.\\
+		(See Figure 7).\\
+		This test {\tt PASSES}
+		\item Command with one or more arguments.\\
+		This was tested by entering {\tt time echo "string"} at the shell prompt. The command {\tt echo} takes an argument and prints it back out. {\tt time} successfully returned the execution time of this command.\\
+		(See Figure 7).\\
+		This test {\tt PASSES}.
+	\end{itemize}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/time_tests}
+	\caption[ctrlpps]{{\tt time} command and the 4 tests}
+	\label{fig:timetests}
+\end{figure}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/setmax_1}
+	\caption[ctrlpps]{max set to 1}
+	\label{fig:setmax1}
+\end{figure}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/setmax_16}
+	\caption[ctrlpps]{max set to 16}
+	\label{fig:setmax16}
+\end{figure}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/setmax_32}
+	\caption[ctrlpps]{max set to 32}
+	\label{fig:setmax32}
+\end{figure}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/setmax_64}
+	\caption[ctrlpps]{max set to 64}
+	\label{fig:setmax64}
+\end{figure}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/setmax_72_1}
+	\caption[ctrlpps]{max set to 72}
+	\label{fig:setmax721}
+\end{figure}
+
+\begin{figure}[h!]
+	\centering
+%	\includegraphics[width=0.8\linewidth]{../../../p2_test_screens/setmax_72_2}
+	\caption[ctrlpps]{max set to 72}
+	\label{fig:setmax722}
+\end{figure}
+
+	\end{itemize}
+
+	All tests have been determined to be {\tt PASSING}.
+
+\end{document}
