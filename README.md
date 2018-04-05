@@ -1,7 +1,7 @@
 # *xv6* Modified
 ### Term Projects - Individual
 ### CS333 *Operating Systems*
-### Portland State Univeristy
+### Portland State University
 
 ##### [Prof. Mark Morrissey](http://web.cecs.pdx.edu/~markem/CS333/)
 
